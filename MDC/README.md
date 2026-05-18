@@ -38,6 +38,9 @@ $R = r_{\text{delay}} + p_{q} + r_{\text{energy}} + r_{\text{drop}}$
     - **Role**: Trains **SARSA** and **Q-Learning** agents and compares them with baselines.
     - **Versioned Checkpoints**: Saves Q-tables with lambda suffixes (e.g., `sarsa_q_table_L1.5.npy`).
     - **Usage**: `python compare_baselines.py --lambda_val 1.5 --episodes 10000`
+- **`save_state_values.py`**:
+    - **Role**: Extracts and calculates state values ($V(s) = \max_a Q(s,a)$) for all possible state configurations and saves them to a CSV file for diagnostic analysis.
+    - **Usage**: `python save_state_values.py --lambda_val 1.5 --agent sarsa`
 
 ### Visualization
 - **`visualize_results.py`**:
@@ -70,5 +73,6 @@ To ensure results from different stress tests are preserved, all output files fo
 ### Getting Started
 1. Install dependencies: `pip install gymnasium pygame numpy pandas matplotlib seaborn`
 2. Train agents: `python compare_baselines.py --lambda_val 1.5`
-3. Visualize results: `python visualize_results.py --lambda_val 1.5`
-4. Run simulation: `python visualize_network.py --lambda_val 1.5`
+3. (Optional) Extract state values: `python save_state_values.py --lambda_val 1.5 --agent sarsa`
+4. Visualize results: `python visualize_results.py --lambda_val 1.5`
+5. Run simulation: `python visualize_network.py --lambda_val 1.5`

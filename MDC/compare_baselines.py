@@ -48,7 +48,9 @@ def train_sarsa(env, episodes=5000, checkpoint="sarsa_q_table.npy"):
     start_time = time.time()
     q_table = np.zeros((env.n_states, env.action_space.n))
     alpha, gamma = 0.1, 0.95
-    epsilon, epsilon_decay, epsilon_min = 1.0, 0.999, 0.01
+    epsilon, epsilon_min = 1.0, 0.01
+    # Dynamic decay: reaches epsilon_min at ~80% of episodes
+    epsilon_decay = np.exp(np.log(epsilon_min) / (episodes * 0.8))
     logs = []
 
     for ep in range(episodes):
@@ -98,7 +100,9 @@ def train_q_learning(env, episodes=5000, checkpoint="ql_q_table.npy"):
     start_time = time.time()
     q_table = np.zeros((env.n_states, env.action_space.n))
     alpha, gamma = 0.1, 0.95
-    epsilon, epsilon_decay, epsilon_min = 1.0, 0.999, 0.01
+    epsilon, epsilon_min = 1.0, 0.01
+    # Dynamic decay: reaches epsilon_min at ~80% of episodes
+    epsilon_decay = np.exp(np.log(epsilon_min) / (episodes * 0.8))
     logs = []
 
     for ep in range(episodes):

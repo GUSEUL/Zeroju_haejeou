@@ -100,6 +100,7 @@ class Visualizer:
         state, _ = env.reset()
         step_count = 0
         total_energy = 0
+        total_drops = 0
         
         while running:
             self.screen.fill(WHITE)
@@ -112,7 +113,7 @@ class Visualizer:
                     if pygame.K_1 <= event.key <= pygame.K_5:
                         current_agent_idx = event.key - pygame.K_1
                         state, _ = env.reset()
-                        step_count, total_energy = 0, 0
+                        step_count, total_energy, total_drops = 0, 0, 0
                         self.packets = []
                         self.pulses = []
             
@@ -120,6 +121,7 @@ class Visualizer:
             action = np.argmax(agent_data[0][env.get_state_index(state)]) if agent_data[1] else agent_data[0].choose_action(state)
             next_state, reward, term, trunc, info = env.step(action)
             total_energy += info['energy']
+            if info['is_dropped']: total_drops += 1
 
             # Animation Logic
             # Action 0: Local (Orange Pulse + Packet to Queue)
@@ -173,6 +175,7 @@ class Visualizer:
                 f"Reward: {reward:.2f}",
                 f"Energy (J): {info['energy']:.2f}",
                 f"Total Energy: {total_energy:.1f} J",
+                f"Total Drops: {total_drops}",
                 f"Queue Level: {state[3]}",
                 f"Dropped: {'YES' if info['is_dropped'] else 'NO'}"
             ]
@@ -186,7 +189,7 @@ class Visualizer:
             step_count += 1
             if term or trunc:
                 state, _ = env.reset()
-                step_count, total_energy = 0, 0
+                step_count, total_energy, total_drops = 0, 0, 0
         pygame.quit()
 
 if __name__ == "__main__":
