@@ -5,7 +5,7 @@ import pandas as pd
 from mdc_gym_env import MDCOffloadingEnv
 from compare_baselines import train_sarsa, train_q_learning, evaluate, AllLocalAgent, RandomAgent, ThresholdAgent
 
-def plot_performance_comparison(results):
+def plot_performance_comparison(results, lambda_val=None):
     """Generates bar charts for Reward, Drop Rate, and Energy for all agents."""
     labels = list(results.keys())
     rewards = [results[l][0] for l in labels]
@@ -30,10 +30,42 @@ def plot_performance_comparison(results):
     ax[2].set_ylabel('Energy (Joules)')
 
     plt.tight_layout()
-    plt.savefig('performance_comparison_all.png')
-    print("Comprehensive performance plot saved as 'performance_comparison_all.png'")
+    suffix = f"_L{lambda_val}" if lambda_val else ""
+    filename = f'performance_comparison_all{suffix}.png'
+    plt.savefig(filename)
+    print(f"Comprehensive performance plot saved as '{filename}'")
 
-def plot_q_heatmap(q_table, env, title_suffix="Agent"):
+def plot_training_curves(lambda_val=None):
+    """Plots training reward curves from saved logs."""
+    suffix = f"_L{lambda_val}" if lambda_val else ""
+    sarsa_log = f"sarsa_train_log{suffix}.csv"
+    ql_log = f"q_learning_train_log{suffix}.csv"
+    
+    plt.figure(figsize=(12, 6))
+    
+    try:
+        if os.path.exists(sarsa_log):
+            df_sarsa = pd.read_csv(sarsa_log)
+            # Rolling average for smoother curve
+            plt.plot(df_sarsa['reward'].rolling(window=100).mean(), label='SARSA', color='blue', alpha=0.8)
+        
+        if os.path.exists(ql_log):
+            df_ql = pd.read_csv(ql_log)
+            plt.plot(df_ql['reward'].rolling(window=100).mean(), label='Q-Learning', color='green', alpha=0.8)
+            
+        plt.title(f'Training Convergence (Lambda={lambda_val if lambda_val else "Default"})')
+        plt.xlabel('Episode')
+        plt.ylabel('Rolling Average Reward (100 eps)')
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.6)
+        
+        filename = f'training_curves{suffix}.png'
+        plt.savefig(filename)
+        print(f"Training curves plot saved as '{filename}'")
+    except Exception as e:
+        print(f"Error plotting training curves: {e}")
+
+def plot_q_heatmap(q_table, env, title_suffix="Agent", lambda_val=None):
     heatmap_data = np.zeros((3, 4)) 
     for cpu in range(3):
         for queue in range(4):
@@ -45,18 +77,29 @@ def plot_q_heatmap(q_table, env, title_suffix="Agent"):
     sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", 
                 xticklabels=['Empty', 'Smooth', 'Warning', 'Critical'],
                 yticklabels=['Low', 'Normal', 'Congested'])
-    plt.title(f'Learned Policy Heatmap ({title_suffix})\n(0:Local, 1-6:Offload, 7:Drop)')
+    plt.title(f'Learned Policy Heatmap ({title_suffix}, L={lambda_val})\n(0:Local, 1-6:Offload, 7:Drop)')
     plt.xlabel('Queue Level')
     plt.ylabel('CPU Workload')
-    plt.savefig(f'policy_heatmap_{title_suffix.lower()}.png')
-    print(f"Policy heatmap saved as 'policy_heatmap_{title_suffix.lower()}.png'")
+    
+    suffix = f"_L{lambda_val}" if lambda_val else ""
+    filename = f'policy_heatmap_{title_suffix.lower()}{suffix}.png'
+    plt.savefig(filename)
+    print(f"Policy heatmap saved as '{filename}'")
 
 if __name__ == "__main__":
-    env = MDCOffloadingEnv()
+    import argparse
+    import os
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=None, help="Poisson arrival lambda")
+    parser.add_argument("--episodes", type=int, default=5000, help="Training episodes")
+    args = parser.parse_args()
+
+    env = MDCOffloadingEnv(arrival_lambda=args.lambda_val)
     
-    print("Training agents for visualization...")
-    sarsa_q, _ = train_sarsa(env, episodes=3000)
-    ql_q, _ = train_q_learning(env, episodes=3000)
+    print(f"Loading/Training agents for visualization (Lambda={args.lambda_val})...")
+    # Using the same logic as compare_baselines to load/train
+    sarsa_q, _ = train_sarsa(env, episodes=args.episodes)
+    ql_q, _ = train_q_learning(env, episodes=args.episodes)
     
     agents = {
         "SARSA": (sarsa_q, True),
@@ -72,6 +115,7 @@ if __name__ == "__main__":
         avg_r, drop_pct, avg_e = evaluate(env, agent, is_q, name)
         results[name] = (avg_r, drop_pct, avg_e)
         
-    plot_performance_comparison(results)
-    plot_q_heatmap(sarsa_q, env, title_suffix="SARSA")
-    plot_q_heatmap(ql_q, env, title_suffix="Q-Learning")
+    plot_performance_comparison(results, lambda_val=args.lambda_val)
+    plot_training_curves(lambda_val=args.lambda_val)
+    plot_q_heatmap(sarsa_q, env, title_suffix="SARSA", lambda_val=args.lambda_val)
+    plot_q_heatmap(ql_q, env, title_suffix="Q-Learning", lambda_val=args.lambda_val)

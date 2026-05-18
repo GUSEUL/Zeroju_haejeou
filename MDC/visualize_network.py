@@ -38,8 +38,16 @@ class Visualizer:
             self.neighbor_pos.append((int(x), int(y)))
             
         self.packets = []
+        self.pulses = []
 
     def draw_node(self, pos, label, color, physical_q=0):
+        # Draw Pulse
+        for p in self.pulses:
+            if p["pos"] == pos:
+                s = pygame.Surface((NODE_RADIUS*4, NODE_RADIUS*4), pygame.SRCALPHA)
+                pygame.draw.circle(s, (*p["color"], p["alpha"]), (NODE_RADIUS*2, NODE_RADIUS*2), p["radius"], 2)
+                self.screen.blit(s, (pos[0] - NODE_RADIUS*2, pos[1] - NODE_RADIUS*2))
+
         pygame.draw.circle(self.screen, color, pos, NODE_RADIUS)
         pygame.draw.circle(self.screen, BLACK, pos, NODE_RADIUS, 2)
         text = self.font.render(label, True, BLACK)
@@ -58,19 +66,32 @@ class Visualizer:
         q_text = self.font.render(f"Q: {physical_q}", True, BLACK)
         self.screen.blit(q_text, (pos[0] - q_text.get_width()//2, bar_y + bar_height + 2))
 
-    def add_packet(self, start, end):
-        self.packets.append({"start": start, "end": end, "progress": 0.0})
+    def add_packet(self, start, end, color=BLUE):
+        self.packets.append({"start": start, "end": end, "progress": 0.0, "color": color})
 
-    def update_packets(self):
+    def add_pulse(self, pos, color):
+        self.pulses.append({"pos": pos, "radius": NODE_RADIUS, "alpha": 255, "color": color})
+
+    def update_elements(self):
+        # Update Packets
         new_packets = []
         for p in self.packets:
-            p["progress"] += 0.12 
+            p["progress"] += 0.15 
             if p["progress"] < 1.0:
                 curr_x = p["start"][0] + (p["end"][0] - p["start"][0]) * p["progress"]
                 curr_y = p["start"][1] + (p["end"][1] - p["start"][1]) * p["progress"]
-                pygame.draw.circle(self.screen, BLUE, (int(curr_x), int(curr_y)), 7)
+                pygame.draw.circle(self.screen, p["color"], (int(curr_x), int(curr_y)), 8)
                 new_packets.append(p)
         self.packets = new_packets
+
+        # Update Pulses
+        new_pulses = []
+        for p in self.pulses:
+            p["radius"] += 2
+            p["alpha"] -= 10
+            if p["alpha"] > 0:
+                new_pulses.append(p)
+        self.pulses = new_pulses
 
     def run_simulation(self, env, agents_dict):
         running = True
@@ -93,36 +114,44 @@ class Visualizer:
                         state, _ = env.reset()
                         step_count, total_energy = 0, 0
                         self.packets = []
+                        self.pulses = []
             
             # Decision
             action = np.argmax(agent_data[0][env.get_state_index(state)]) if agent_data[1] else agent_data[0].choose_action(state)
             next_state, reward, term, trunc, info = env.step(action)
             total_energy += info['energy']
 
-            # Visualization Logic Refinement
-            # 0: Local (Orange), 1-6: Offload (Blue), 7: Drop (Dark Gray/Red)
+            # Animation Logic
+            # Action 0: Local (Orange Pulse + Packet to Queue)
+            # Action 1-6: Offload (Blue Packet to Neighbor)
+            # Action 7: Drop (Red Flash)
+            
+            main_color = GRAY
             if action == 0:
                 main_color = ORANGE
-                self.add_packet(CENTER, (CENTER[0], CENTER[1]-20)) 
+                self.add_pulse(CENTER, ORANGE)
+                # Move to Queue Gauge (below node)
+                self.add_packet(CENTER, (CENTER[0], CENTER[1] + NODE_RADIUS + 10), color=ORANGE)
             elif 1 <= action <= 6:
                 main_color = BLUE
-                self.add_packet(CENTER, self.neighbor_pos[action - 1]) 
+                self.add_packet(CENTER, self.neighbor_pos[action - 1], color=BLUE) 
             else: # Action 7: Drop
                 main_color = DARK_GRAY
+                self.add_packet(CENTER, (CENTER[0], CENTER[1] - 50), color=RED)
             
             if info['is_dropped']: 
                 main_color = RED 
+                self.add_pulse(CENTER, RED)
 
             # Draw Central MDC
             self.draw_node(CENTER, "Main MDC", main_color, physical_q=info['q_size'])
             
-            # Draw Neighbor Nodes with their own queues
+            # Draw Neighbor Nodes
             for i in range(6):
                 node_color = YELLOW if (action == i + 1) else GRAY
-                # env.neighbor_queues access directly for visualization
                 self.draw_node(self.neighbor_pos[i], f"N{i+1}", node_color, physical_q=env.neighbor_queues[i])
 
-            self.update_packets()
+            self.update_elements()
 
             # Sidebar UI
             pygame.draw.rect(self.screen, GRAY, (0, 0, 280, SCREEN_HEIGHT))
@@ -161,10 +190,18 @@ class Visualizer:
         pygame.quit()
 
 if __name__ == "__main__":
-    env = MDCOffloadingEnv()
-    print("Loading/Training agents for visualization...")
-    # Use default 5000-episode checkpoints if they exist
-    sarsa_q, _ = train_sarsa(env, episodes=5000)
-    ql_q, _ = train_q_learning(env, episodes=5000)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=None, help="Poisson arrival lambda")
+    parser.add_argument("--episodes", type=int, default=5000, help="Training episodes")
+    args = parser.parse_args()
+
+    env = MDCOffloadingEnv(arrival_lambda=args.lambda_val)
+    print(f"Loading/Training agents for visualization (Lambda={args.lambda_val})...")
+    
+    # Use lambda-specific checkpoints
+    sarsa_q, _ = train_sarsa(env, episodes=args.episodes)
+    ql_q, _ = train_q_learning(env, episodes=args.episodes)
+    
     agents = {"SARSA": (sarsa_q, True), "Q-Learning": (ql_q, True), "All-Local": (AllLocalAgent(), False), "Random": (RandomAgent(), False), "Threshold": (ThresholdAgent(), False)}
     Visualizer().run_simulation(env, agents)

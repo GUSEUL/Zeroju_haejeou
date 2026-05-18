@@ -4,13 +4,14 @@ import numpy as np
 import math
 
 class MDCOffloadingEnv(gym.Env):
-    def __init__(self, burst_mode=False):
+    def __init__(self, burst_mode=False, arrival_lambda=None):
         super(MDCOffloadingEnv, self).__init__()
         # State: Task(2), Channel(3), CPU(3), Queue(4), BW(2)
         self.action_space = spaces.Discrete(8)
         self.observation_space = spaces.MultiDiscrete([2, 3, 3, 4, 2])
         self.n_states = 144
         self.burst_mode = burst_mode
+        self.arrival_lambda = arrival_lambda # Custom traffic load
         
         # Physical Constants
         self.max_physical_queue = 50
@@ -106,9 +107,11 @@ class MDCOffloadingEnv(gym.Env):
         # Process Queue
         self.physical_queue_size = max(0, self.physical_queue_size - service_rate)
         
-        # Traffic Arrival
+        # Traffic Arrival (Improved with custom lambda)
         next_task_type = np.random.choice([0, 1])
-        if self.burst_mode:
+        if self.arrival_lambda is not None:
+            arrival_rate = np.random.poisson(self.arrival_lambda)
+        elif self.burst_mode:
             arrival_rate = np.random.poisson(2.5)
         else:
             arrival_rate = np.random.poisson(0.5) if next_task_type == 0 else (int(np.random.pareto(2.0) + 1) if np.random.random() < 0.3 else 0)

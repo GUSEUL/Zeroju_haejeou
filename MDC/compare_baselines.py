@@ -34,12 +34,17 @@ class ThresholdAgent:
 # --- RL Training Functions ---
 
 def train_sarsa(env, episodes=5000, checkpoint="sarsa_q_table.npy"):
+    # Dynamic checkpoint naming based on env.arrival_lambda
+    if env.arrival_lambda is not None:
+        name_parts = checkpoint.split(".")
+        checkpoint = f"{name_parts[0]}_L{env.arrival_lambda}.npy"
+
     if checkpoint:
         q_table = load_q_table(checkpoint)
         if q_table is not None:
             return q_table, 0.0
 
-    print("\n[Training SARSA Agent...]")
+    print(f"\n[Training SARSA Agent (Lambda={env.arrival_lambda})...]")
     start_time = time.time()
     q_table = np.zeros((env.n_states, env.action_space.n))
     alpha, gamma = 0.1, 0.95
@@ -72,18 +77,24 @@ def train_sarsa(env, episodes=5000, checkpoint="sarsa_q_table.npy"):
 
     end_time = time.time()
     elapsed = end_time - start_time
-    pd.DataFrame(logs).to_csv("sarsa_train_log.csv", index=False)
+    # Save log with lambda suffix
+    log_name = f"sarsa_train_log_L{env.arrival_lambda}.csv" if env.arrival_lambda else "sarsa_train_log.csv"
+    pd.DataFrame(logs).to_csv(log_name, index=False)
     if checkpoint:
         save_q_table(q_table, checkpoint)
     return q_table, elapsed
 
 def train_q_learning(env, episodes=5000, checkpoint="ql_q_table.npy"):
+    if env.arrival_lambda is not None:
+        name_parts = checkpoint.split(".")
+        checkpoint = f"{name_parts[0]}_L{env.arrival_lambda}.npy"
+
     if checkpoint:
         q_table = load_q_table(checkpoint)
         if q_table is not None:
             return q_table, 0.0
 
-    print("\n[Training Q-Learning Agent...]")
+    print(f"\n[Training Q-Learning Agent (Lambda={env.arrival_lambda})...]")
     start_time = time.time()
     q_table = np.zeros((env.n_states, env.action_space.n))
     alpha, gamma = 0.1, 0.95
@@ -115,7 +126,8 @@ def train_q_learning(env, episodes=5000, checkpoint="ql_q_table.npy"):
 
     end_time = time.time()
     elapsed = end_time - start_time
-    pd.DataFrame(logs).to_csv("q_learning_train_log.csv", index=False)
+    log_name = f"q_learning_train_log_L{env.arrival_lambda}.csv" if env.arrival_lambda else "q_learning_train_log.csv"
+    pd.DataFrame(logs).to_csv(log_name, index=False)
     if checkpoint:
         save_q_table(q_table, checkpoint)
     return q_table, elapsed
@@ -143,10 +155,16 @@ def evaluate(env, agent, is_q=False, name="Agent"):
     return avg_reward, drop_rate, avg_energy
 
 if __name__ == "__main__":
-    env = MDCOffloadingEnv()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=None, help="Poisson arrival lambda")
+    parser.add_argument("--episodes", type=int, default=5000, help="Training episodes")
+    args = parser.parse_args()
+
+    env = MDCOffloadingEnv(arrival_lambda=args.lambda_val)
     
-    sarsa_q, sarsa_time = train_sarsa(env, episodes=5000)
-    ql_q, ql_time = train_q_learning(env, episodes=5000)
+    sarsa_q, sarsa_time = train_sarsa(env, episodes=args.episodes)
+    ql_q, ql_time = train_q_learning(env, episodes=args.episodes)
     
     agents = {
         "SARSA": (sarsa_q, True, sarsa_time),
