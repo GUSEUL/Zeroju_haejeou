@@ -6,10 +6,10 @@ import math
 class MDCOffloadingEnv(gym.Env):
     def __init__(self, burst_mode=False, arrival_lambda=None):
         super(MDCOffloadingEnv, self).__init__()
-        # State: Task(2), Channel(3), CPU(3), Queue(4), BW(2)
+        # State: Task(2), Channel(3), CPU(3), Queue(4), BW(2), Best_N_ID(6), Best_N_Q(4)
         self.action_space = spaces.Discrete(8)
-        self.observation_space = spaces.MultiDiscrete([2, 3, 3, 4, 2])
-        self.n_states = 144
+        self.observation_space = spaces.MultiDiscrete([2, 3, 3, 4, 2, 6, 4])
+        self.n_states = 3456 # 144 * 6 * 4
         self.burst_mode = burst_mode
         self.arrival_lambda = arrival_lambda # Custom traffic load
         
@@ -24,25 +24,41 @@ class MDCOffloadingEnv(gym.Env):
         
         self.reset()
 
+    def _get_neighbor_info(self):
+        """Helper to find the best neighbor (min queue)."""
+        # Convert physical queues to levels 0-3
+        levels = []
+        for q in self.neighbor_queues:
+            if q == 0: levels.append(0)
+            elif q < self.max_physical_queue * 0.3: levels.append(1)
+            elif q < self.max_physical_queue * 0.7: levels.append(2)
+            else: levels.append(3)
+        
+        best_id = np.argmin(self.neighbor_queues)
+        best_q = levels[best_id]
+        return best_id, best_q
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.state = np.array([0, 1, 1, 0, 1], dtype=np.int32) # Normal starting state
         self.physical_queue_size = 0
-        self.neighbor_queues = np.zeros(6, dtype=np.int32) # Added: Track 6 neighbor queues
+        self.neighbor_queues = np.zeros(6, dtype=np.int32)
         self.current_step = 0
+        
+        best_id, best_q = self._get_neighbor_info()
+        # Initial State with neighbor info
+        self.state = np.array([0, 1, 1, 0, 1, best_id, best_q], dtype=np.int32)
         return self.state, {}
 
     def get_state_index(self, state_array):
         return np.ravel_multi_index(state_array, self.observation_space.nvec)
 
     def step(self, action):
-        task_type, channel, cpu, queue, bw = self.state
+        task_type, channel, cpu, queue, bw, _, _ = self.state
         delay_trans, delay_comp = 0.0, 0.0
         energy_consumed = 0.0
         is_dropped = False
 
         # Update Neighbor Queues (Processing at neighbors)
-        # Neighbors process 1-3 tasks randomly per step
         for i in range(6):
             self.neighbor_queues[i] = max(0, self.neighbor_queues[i] - np.random.randint(1, 4))
 
@@ -76,38 +92,24 @@ class MDCOffloadingEnv(gym.Env):
 
         total_delay = delay_trans + delay_comp
 
-        # --- 3. Balanced Reward Calculation (Normalization) ---
-        # w_task: URLLC (0) weight 2.0, eMBB (1) weight 0.5
+        # --- 3. Reward Calculation ---
         w_task = 2.0 if task_type == 0 else 0.5
-        
-        # Scaled Penalties
-        # 1. Delay Penalty (Normalized to ~0-5 range)
         r_delay = - (w_task * total_delay * 2.0)
-        
-        # 2. Queue Penalty (Exponential warning before overflow)
-        # Max p_q is around 6.38 when queue=3
         p_q = - (np.exp(2.0 * (queue / 3.0)) - 1)
-        
-        # 3. Energy Penalty (Weighted energy consumption)
         r_energy = - (energy_consumed * 1.5)
         
-        # 4. Drop Penalty (Balanced Scale: 20.0 instead of 100.0)
-        # 100 was too high, making agent ignore delay optimization.
         if self.physical_queue_size > self.max_physical_queue:
             is_dropped = True
             self.physical_queue_size = self.max_physical_queue
             
         r_drop = - 20.0 if is_dropped else 0.0
-
         reward = r_delay + p_q + r_energy + r_drop
 
-        # --- 4. Environment State Transitions ---
+        # --- 4. State Transitions ---
         self.current_step += 1
-        
-        # Process Queue
         self.physical_queue_size = max(0, self.physical_queue_size - service_rate)
         
-        # Traffic Arrival (Improved with custom lambda)
+        # Traffic Arrival
         next_task_type = np.random.choice([0, 1])
         if self.arrival_lambda is not None:
             arrival_rate = np.random.poisson(self.arrival_lambda)
@@ -121,14 +123,17 @@ class MDCOffloadingEnv(gym.Env):
         # Markov Transitions
         next_channel = self._transition_state(channel, 3)
         next_cpu = self._transition_state(cpu, 3)
-        next_bw = self._transition_state(bw, 2) # Now BW state actually transitions and matters
+        next_bw = self._transition_state(bw, 2)
         
         if self.physical_queue_size == 0: q_lvl = 0
         elif self.physical_queue_size < self.max_physical_queue * 0.3: q_lvl = 1
         elif self.physical_queue_size < self.max_physical_queue * 0.7: q_lvl = 2
         else: q_lvl = 3
 
-        self.state = np.array([next_task_type, next_channel, next_cpu, q_lvl, next_bw], dtype=np.int32)
+        # Update Best Neighbor Info for the next state
+        best_id, best_q = self._get_neighbor_info()
+
+        self.state = np.array([next_task_type, next_channel, next_cpu, q_lvl, next_bw, best_id, best_q], dtype=np.int32)
         
         return self.state, reward, False, self.current_step >= self.max_steps, {
             "delay": total_delay, 
