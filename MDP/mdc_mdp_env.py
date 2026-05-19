@@ -11,14 +11,24 @@ class MDCMDPEnv(gym.Env):
         # LocalQ capacity: 5 (0-4)
         # NeighborQ capacity: 11 (0-10)
         self.observation_space = spaces.MultiDiscrete([2, 3, 5, 11, 11])
-        self.n_states = 2 * 3 * 5 * 11 * 11 # 3630 states
+        self.n_states = 2 * 3 * 5 * 11 * 11
         self.arrival_lambda = arrival_lambda if arrival_lambda is not None else 1.5
         self.max_steps = 1000
         
-        # Performance parameters based on Comm_state
+        # Performance parameters
         self.service_rates = [1, 2, 3] # Local processing speed
         self.channel_factors = [1.5, 1.0, 0.5] # Transmission delay multiplier
         self.energy_costs = [0.8, 0.5, 0.3] # Energy per task
+        
+        # Reward Hyperparameters
+        self.w = 0.6 # Weight for delay (1-w for energy)
+        self.beta = 5.0 # Queue penalty scaling factor
+        self.gamma = 20.0 # Drop penalty
+        
+        # Normalization factors
+        self.max_delay = 5.0 
+        self.max_energy = 1.0
+        self.max_local_q = 5.0
         
         self.reset()
 
@@ -56,20 +66,26 @@ class MDCMDPEnv(gym.Env):
         elif action == 3: # Drop
             is_dropped = True
 
-        total_delay = delay_trans + delay_comp
-        w_task = 2.0 if task_type == 0 else 0.5
-        
-        r_delay = - (w_task * total_delay * 2.0)
-        # Queue Penalty normalized by capacity (5)
-        p_q = - (np.exp(2.0 * (self.local_q / 5.0)) - 1)
-        r_energy = - (energy_consumed * 1.5)
-        
-        if self.local_q >= 5: # Overflow drop
+        if self.local_q >= 5: # Overflow drop logic
             is_dropped = True
             self.local_q = 4 # Clip to max index
-        r_drop = - 20.0 if is_dropped else 0.0
+
+        # --- Reward Calculation ---
+        total_delay = delay_trans + delay_comp
+        w_task = 2.0 if task_type == 0 else 0.5 # Task priority weight
         
-        reward = r_delay + p_q + r_energy + r_drop
+        # 1. Normalization
+        norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
+        norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
+        
+        # 2. Penalty Components
+        cost_delay_energy = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
+        penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
+        penalty_drop = self.gamma if is_dropped else 0.0
+        
+        # 3. Final Reward (Negative Cost)
+        reward = - (cost_delay_energy + penalty_queue + penalty_drop)
+        # --------------------------
 
         # Transitions
         self.current_step += 1

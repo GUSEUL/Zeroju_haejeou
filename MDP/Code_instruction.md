@@ -13,8 +13,11 @@
         - **LocalQ (5)**: 로컬 큐 용량 (0~4)
         - **N1_Q, N2_Q (11)**: 이웃 노드 1, 2의 각각의 큐 용량 (0~10)
     - **액션 공간(Action Space)**: `0: Local`, `1: Neighbor 1`, `2: Neighbor 2`, `3: Intentional Drop`
-    - **보상 함수 (Reward Function)**: $R = r_{delay} + p_{q} + r_{energy} + r_{drop}$
-        - $p_{q} = -(\exp(2.0 \cdot Queue/5) - 1)$ (로컬 큐 5개 용량 기준 페널티)
+    - **보상 함수 (Reward Function)**: $R = -(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{drop})$
+        - $Cost_{delay\_energy} = w_{task} \cdot w \cdot NormDelay + (1-w) \cdot NormEnergy$
+        - $Penalty_{queue} = \beta \cdot (Queue/MaxQueue)^2$
+        - $Penalty_{drop} = \gamma$ (태스크 드랍 시)
+        - *특징: 모든 지표를 정규화하여 학습 안정성을 높이고, 지연 시간과 에너지 간의 Trade-off(w)를 조절함.*
 
 ### 🔵 `build_mdp_model.py`
 - **역할**: 환경의 전이 확률 행렬($P$)과 기대 보상($R$)을 수치적으로 계산하여 MDP 모델을 생성합니다.
@@ -23,6 +26,7 @@
 
 ### 🔴 `train_all_mdp.py`
 - **역할**: MDP 모델을 바탕으로 최적 정책(DP)과 강화학습(RL) 알고리즘의 성능을 비교 평가합니다.
+- **지원 알고리즘**: Policy Iteration, Value Iteration, SARSA, Q-Learning, Random.
 
 ### 📊 `visualize_mdp_results.py`
 - **역할**: 학습 및 평가 결과를 시각화하여 분석 보고서용 이미지를 생성합니다.

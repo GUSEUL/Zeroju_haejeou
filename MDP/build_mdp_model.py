@@ -1,14 +1,15 @@
 import numpy as np
 import os
 import pickle
+import argparse
 
-def build_model(env_class, lambda_val=0.5):
+def build_model(env_class, lambda_val=1.5):
     env = env_class(arrival_lambda=lambda_val)
     n_states = env.n_states
     n_actions = env.action_space.n
     P = np.zeros((n_states, n_actions, n_states))
     R = np.zeros((n_states, n_actions))
-    print(f"Building MDP Model ({n_states} states)...")
+    print(f"Building MDP Model ({n_states} states) with Lambda={lambda_val}...")
     
     p_task = np.array([0.5, 0.5])
     def get_comm_probs(curr):
@@ -54,10 +55,11 @@ def build_model(env_class, lambda_val=0.5):
 
 if __name__ == "__main__":
     from mdc_mdp_env import MDCMDPEnv
-    import sys
-    lambda_val = 1.5
-    for arg in sys.argv:
-        if arg.startswith("--lambda_val="): lambda_val = float(arg.split("=")[1])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=1.5, help="Task arrival rate (lambda)")
+    args = parser.parse_args()
+    
+    lambda_val = args.lambda_val
     P, R = build_model(MDCMDPEnv, lambda_val=lambda_val)
     suffix = f"_L{lambda_val}"
     with open(f"mdp_model{suffix}.pkl", "wb") as f: pickle.dump((P, R), f)

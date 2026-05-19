@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import pickle
 import time
+import argparse
 from mdc_mdp_env import MDCMDPEnv
 
 def value_iteration(P, R, gamma=0.95, theta=1e-6):
@@ -110,28 +111,30 @@ def evaluate(env, pol, is_q=False):
     return np.mean(rr), np.mean(dd), np.mean(ee)
 
 if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument("--lambda_val", type=float, default=1.5)
-    p.add_argument("--episodes", type=int, default=5000)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=1.5, help="Task arrival rate (lambda)")
+    parser.add_argument("--episodes", type=int, default=5000, help="Number of training episodes")
+    args = parser.parse_args()
+    
     env = MDCMDPEnv(arrival_lambda=args.lambda_val)
     results = []
     suffix = f"_L{args.lambda_val}"
+    
     if os.path.exists(f"mdp_model{suffix}.pkl"):
         with open(f"mdp_model{suffix}.pkl", "rb") as f: P, R = pickle.load(f)
         for n, f in [("Policy Iteration", policy_iteration), ("Value Iteration", value_iteration)]:
             pol, _, t = f(P, R); r, d, e = evaluate(env, pol)
             results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
+            
     for n, f in [("SARSA", train_sarsa), ("Q-Learning", train_q_learning)]:
         q, logs, t = f(env, episodes=args.episodes, suffix=suffix)
         if len(logs) > 0:
             pd.DataFrame(logs).to_csv(f"{n.lower()}_log{suffix}.csv", index=False)
         r, d, e = evaluate(env, q, is_q=True)
         results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
-    r, d, e = evaluate(env, np.zeros(env.n_states, dtype=int))
-    results.append({"agent": "All-Local", "reward": r, "drops": d, "energy": e, "time": 0})
+        
     r, d, e = evaluate(env, np.random.randint(0, 4, size=env.n_states))
     results.append({"agent": "Random", "reward": r, "drops": d, "energy": e, "time": 0})
+    
     pd.DataFrame(results).to_csv(f"mdp_final_results{suffix}.csv", index=False)
     print("Done.")

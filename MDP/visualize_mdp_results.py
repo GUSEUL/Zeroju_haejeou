@@ -7,7 +7,7 @@ import argparse
 
 def plot_training_comparison(lambda_val=None):
     suffix = f"_L{lambda_val}" if lambda_val else ""
-    algos = ["sarsa", "q_learning"]
+    algos = ["sarsa", "q-learning"]
     plt.figure(figsize=(10, 6))
     for algo in algos:
         path = f"{algo}_log{suffix}.csv"
@@ -33,38 +33,40 @@ def plot_performance_bars(lambda_val=None):
     plt.savefig(f"mdp_performance_bars{suffix}.png")
 
 def plot_policy_heatmap(policy, env, title, lambda_val=None):
-    # Heatmap: CPU_BW (y) vs Local_Q (x)
-    heatmap_data = np.zeros((6, 11))
-    for cbw in range(6):
-        for ql in range(11):
+    # Heatmap: Comm_state (y) vs Local_Q (x)
+    heatmap_data = np.zeros((3, 5))
+    for comm in range(3):
+        for ql in range(5):
             actions = []
             for task in [0, 1]:
-                for chan in [1]:
-                    for bnq in [0]:
-                        s_idx = env.get_state_index([task, chan, cbw, ql, bnq])
+                for qn1 in [0, 5]: 
+                    for qn2 in [0, 5]:
+                        s_idx = env.get_state_index([task, comm, ql, qn1, qn2])
                         a = np.argmax(policy[s_idx]) if policy.ndim > 1 else policy[s_idx]
                         actions.append(a)
-            heatmap_data[cbw, ql] = np.bincount(actions).argmax()
+            heatmap_data[comm, ql] = np.bincount(actions).argmax()
     plt.figure(figsize=(8, 6))
-    sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", xticklabels=range(11), yticklabels=range(6))
+    sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", xticklabels=range(5), yticklabels=["Poor", "Normal", "Good"])
     plt.title(f"Policy: {title} (0:Loc, 1:N1, 2:N2, 3:Drop)")
-    plt.xlabel("Local Queue"); plt.ylabel("CPU_BW State")
+    plt.xlabel("Local Queue"); plt.ylabel("Comm State")
     suffix = f"_L{lambda_val}" if lambda_val else ""
     plt.savefig(f"mdp_heatmap_{title.lower().replace(" ", "_")}{suffix}.png")
 
 if __name__ == "__main__":
     from mdc_mdp_env import MDCMDPEnv
     import pickle
-    p = argparse.ArgumentParser()
-    p.add_argument("--lambda_val", type=float, default=0.5)
-    args = p.parse_args()
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lambda_val", type=float, default=1.5, help="Task arrival rate (lambda)")
+    args = parser.parse_args()
+    
     env = MDCMDPEnv(arrival_lambda=args.lambda_val)
     plot_training_comparison(args.lambda_val)
     plot_performance_bars(args.lambda_val)
+    
     suffix = f"_L{args.lambda_val}"
     if os.path.exists(f"mdp_model{suffix}.pkl"):
         with open(f"mdp_model{suffix}.pkl", "rb") as f: P, R = pickle.load(f)
         from train_all_mdp import value_iteration
         pol, _, _ = value_iteration(P, R)
         plot_policy_heatmap(pol, env, "DP Optimal", args.lambda_val)
-
