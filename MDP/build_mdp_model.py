@@ -3,13 +3,13 @@ import os
 import pickle
 import argparse
 
-def build_model(env_class, lambda_val=1.5):
-    env = env_class(arrival_lambda=lambda_val)
+def build_model(env_class, lambda_val=1.5, reward_type="standard"):
+    env = env_class(arrival_lambda=lambda_val, reward_type=reward_type)
     n_states = env.n_states
     n_actions = env.action_space.n
     P = np.zeros((n_states, n_actions, n_states))
     R = np.zeros((n_states, n_actions))
-    print(f"Building MDP Model ({n_states} states) with Lambda={lambda_val}...")
+    print(f"Building MDP Model ({n_states} states) with Lambda={lambda_val}, Reward={reward_type}...")
     
     p_task = np.array([0.5, 0.5])
     def get_comm_probs(curr):
@@ -56,11 +56,17 @@ def build_model(env_class, lambda_val=1.5):
 if __name__ == "__main__":
     from mdc_mdp_env import MDCMDPEnv
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lambda_val", type=float, default=1.5, help="Task arrival rate (lambda)")
+    parser.add_argument("--lambda_val", type=float, default=1.5)
+    parser.add_argument("--reward_type", type=str, default="standard")
     args = parser.parse_args()
     
-    lambda_val = args.lambda_val
-    P, R = build_model(MDCMDPEnv, lambda_val=lambda_val)
-    suffix = f"_L{lambda_val}"
-    with open(f"mdp_model{suffix}.pkl", "wb") as f: pickle.dump((P, R), f)
-    print(f"Model saved to mdp_model{suffix}.pkl")
+    P, R = build_model(MDCMDPEnv, lambda_val=args.lambda_val, reward_type=args.reward_type)
+    
+    # 폴더 생성 로직
+    os.makedirs("models", exist_ok=True)
+    
+    suffix = f"_{args.reward_type}_L{args.lambda_val}"
+    model_path = os.path.join("models", f"mdp_model{suffix}.pkl")
+    
+    with open(model_path, "wb") as f: pickle.dump((P, R), f)
+    print(f"Model saved to {model_path}")

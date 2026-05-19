@@ -3,17 +3,16 @@ from gymnasium import spaces
 import numpy as np
 
 class MDCMDPEnv(gym.Env):
-    def __init__(self, arrival_lambda=None):
+    def __init__(self, arrival_lambda=None, reward_type="standard"):
         super(MDCMDPEnv, self).__init__()
         # 0:Local, 1:N1, 2:N2, 3:Drop
         self.action_space = spaces.Discrete(4)
         # Task(2), Comm_state(3), LocalQ(5), N1_Q(11), N2_Q(11)
-        # LocalQ capacity: 5 (0-4)
-        # NeighborQ capacity: 11 (0-10)
         self.observation_space = spaces.MultiDiscrete([2, 3, 5, 11, 11])
         self.n_states = 2 * 3 * 5 * 11 * 11
         self.arrival_lambda = arrival_lambda if arrival_lambda is not None else 1.5
         self.max_steps = 1000
+        self.reward_type = reward_type
         
         # Performance parameters
         self.service_rates = [1, 2, 3] # Local processing speed
@@ -21,8 +20,8 @@ class MDCMDPEnv(gym.Env):
         self.energy_costs = [0.8, 0.5, 0.3] # Energy per task
         
         # Reward Hyperparameters
-        self.w = 0.6 # Weight for delay (1-w for energy)
-        self.beta = 5.0 # Queue penalty scaling factor
+        self.w = 0.6 # Weight for delay
+        self.beta = 5.0 # Queue penalty scaling
         self.gamma = 20.0 # Drop penalty
         
         # Normalization factors
@@ -70,21 +69,34 @@ class MDCMDPEnv(gym.Env):
             is_dropped = True
             self.local_q = 4 # Clip to max index
 
-        # --- Reward Calculation ---
+        # --- Reward Calculation Logic ---
         total_delay = delay_trans + delay_comp
-        w_task = 2.0 if task_type == 0 else 0.5 # Task priority weight
+        w_task = 2.0 if task_type == 0 else 0.5
         
-        # 1. Normalization
-        norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
-        norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
-        
-        # 2. Penalty Components
-        cost_delay_energy = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
-        penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
-        penalty_drop = self.gamma if is_dropped else 0.0
-        
-        # 3. Final Reward (Negative Cost)
-        reward = - (cost_delay_energy + penalty_queue + penalty_drop)
+        if self.reward_type == "sparse":
+            # Sparse: Only care about drops, very small step penalty
+            reward = -100.0 if is_dropped else -0.1
+            
+        elif self.reward_type == "cliff":
+            # Cliff: Huge penalty for drop, and noise near the cliff (local_q=4)
+            norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
+            norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
+            cost_de = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
+            
+            penalty_drop = 1000.0 if is_dropped else 0.0
+            reward = -(cost_de + penalty_drop)
+            
+            if self.local_q >= 4 and not is_dropped:
+                # Add high variance noise near the edge to scare SARSA
+                reward += np.random.normal(0, 5.0)
+                
+        else: # "standard"
+            norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
+            norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
+            cost_delay_energy = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
+            penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
+            penalty_drop = self.gamma if is_dropped else 0.0
+            reward = - (cost_delay_energy + penalty_queue + penalty_drop)
         # --------------------------
 
         # Transitions

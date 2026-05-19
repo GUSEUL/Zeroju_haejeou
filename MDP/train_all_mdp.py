@@ -41,8 +41,8 @@ def policy_iteration(P, R, gamma=0.95, theta=1e-6):
         if stable: break
     return policy, V, time.time() - start_time
 
-def train_q_learning(env, episodes=5000, gamma=0.95, suffix=""):
-    q_path = f"q_table_ql{suffix}.npy"
+def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
+    q_path = os.path.join(output_dir, "q_table_ql.npy")
     if os.path.exists(q_path):
         print(f" Loading checkpoint: {q_path}")
         return np.load(q_path), [], 0.0
@@ -68,8 +68,8 @@ def train_q_learning(env, episodes=5000, gamma=0.95, suffix=""):
     np.save(q_path, q)
     return q, logs, time.time() - start_time
 
-def train_sarsa(env, episodes=5000, gamma=0.95, suffix=""):
-    q_path = f"q_table_sarsa{suffix}.npy"
+def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
+    q_path = os.path.join(output_dir, "q_table_sarsa.npy")
     if os.path.exists(q_path):
         print(f" Loading checkpoint: {q_path}")
         return np.load(q_path), [], 0.0
@@ -112,29 +112,40 @@ def evaluate(env, pol, is_q=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lambda_val", type=float, default=1.5, help="Task arrival rate (lambda)")
-    parser.add_argument("--episodes", type=int, default=5000, help="Number of training episodes")
+    parser.add_argument("--lambda_val", type=float, default=1.5)
+    parser.add_argument("--episodes", type=int, default=5000)
+    parser.add_argument("--reward_type", type=str, default="standard")
     args = parser.parse_args()
     
-    env = MDCMDPEnv(arrival_lambda=args.lambda_val)
-    results = []
-    suffix = f"_L{args.lambda_val}"
+    # 결과 폴더 생성
+    res_dir = f"results/L_{args.lambda_val}_E_{args.episodes}/{args.reward_type}"
+    os.makedirs(res_dir, exist_ok=True)
     
-    if os.path.exists(f"mdp_model{suffix}.pkl"):
-        with open(f"mdp_model{suffix}.pkl", "rb") as f: P, R = pickle.load(f)
+    env = MDCMDPEnv(arrival_lambda=args.lambda_val, reward_type=args.reward_type)
+    results = []
+    
+    # 모델 로드 (models 폴더에서 찾기)
+    suffix = f"_{args.reward_type}_L{args.lambda_val}"
+    model_path = os.path.join("models", f"mdp_model{suffix}.pkl")
+    
+    if os.path.exists(model_path):
+        print(f"Loading MDP model: {model_path}")
+        with open(model_path, "rb") as f: P, R = pickle.load(f)
         for n, f in [("Policy Iteration", policy_iteration), ("Value Iteration", value_iteration)]:
             pol, _, t = f(P, R); r, d, e = evaluate(env, pol)
             results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
             
     for n, f in [("SARSA", train_sarsa), ("Q-Learning", train_q_learning)]:
-        q, logs, t = f(env, episodes=args.episodes, suffix=suffix)
+        q, logs, t = f(env, episodes=args.episodes, output_dir=res_dir)
         if len(logs) > 0:
-            pd.DataFrame(logs).to_csv(f"{n.lower()}_log{suffix}.csv", index=False)
+            pd.DataFrame(logs).to_csv(os.path.join(res_dir, f"{n.lower()}_log.csv"), index=False)
         r, d, e = evaluate(env, q, is_q=True)
         results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
         
     r, d, e = evaluate(env, np.random.randint(0, 4, size=env.n_states))
     results.append({"agent": "Random", "reward": r, "drops": d, "energy": e, "time": 0})
     
-    pd.DataFrame(results).to_csv(f"mdp_final_results{suffix}.csv", index=False)
+    final_res_path = os.path.join(res_dir, "mdp_final_results.csv")
+    pd.DataFrame(results).to_csv(final_res_path, index=False)
+    print(f"Results saved to {final_res_path}")
     print("Done.")
