@@ -98,7 +98,7 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
 
 def evaluate(env, pol, is_q=False):
     rr, dd, ee = [], [], []
-    for _ in range(50):
+    for _ in range(500):
         s, _ = env.reset(); er, ed, ee_episode = 0, 0, 0
         while True:
             a = np.argmax(pol[env.get_state_index(s)]) if is_q else pol[env.get_state_index(s)]

@@ -25,7 +25,7 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
         p_comm = get_comm_probs(comm)
         
         for a in range(n_actions):
-            samples = 100
+            samples = 2000
             total_r = 0
             queue_transitions = {}
             

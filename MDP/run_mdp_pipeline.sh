@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 기본값 설정
-LAMBDA=1.5
+LAMBDAS=(0.5 1.5 3.5)
 EPISODES=5000
 REWARD_TYPES=("standard" "sparse" "cliff")
 
@@ -19,37 +19,39 @@ fi
 # 인자 처리
 while getopts "l:e:r:" opt; do
   case $opt in
-    l) LAMBDA=$OPTARG ;;
+    l) LAMBDAS=($OPTARG) ;;
     e) EPISODES=$OPTARG ;;
-    r) REWARD_TYPES=($OPTARG) ;; # 특정 reward_type만 지정 가능
-    \?) echo "사용법: $0 [-l lambda] [-e episodes] [-r reward_type]" >&2; exit 1 ;;
+    r) REWARD_TYPES=($OPTARG) ;;
+    \?) echo "사용법: $0 [-l 'lambda_list'] [-e episodes] [-r 'reward_types']" >&2; exit 1 ;;
   esac
 done
 
-for RT in "${REWARD_TYPES[@]}"; do
-    echo ""
-    echo "=========================================================="
-    echo " MDC MDP Pipeline: [Lambda: $LAMBDA, Reward: $RT]"
-    echo "=========================================================="
+for LAMBDA in "${LAMBDAS[@]}"; do
+    for RT in "${REWARD_TYPES[@]}"; do
+        echo ""
+        echo "=========================================================="
+        echo " MDC MDP Pipeline: [Lambda: $LAMBDA, Reward: $RT]"
+        echo "=========================================================="
 
-    # Step 1: MDP 모델 빌드
-    echo "[Step 1] Building MDP Model..."
-    $PYTHON_CMD build_mdp_model.py --lambda_val=$LAMBDA --reward_type=$RT
-    if [ $? -ne 0 ]; then echo "Step 1 실패 ($RT)"; continue; fi
+        # Step 1: MDP 모델 빌드 (정밀도 향상: samples=2000)
+        echo "[Step 1] Building MDP Model..."
+        $PYTHON_CMD build_mdp_model.py --lambda_val=$LAMBDA --reward_type=$RT
+        if [ $? -ne 0 ]; then echo "Step 1 실패 ($RT, L=$LAMBDA)"; continue; fi
 
-    # Step 2: 알고리즘 학습 및 평가
-    echo "[Step 2] Training and Evaluating Agents..."
-    $PYTHON_CMD train_all_mdp.py --lambda_val=$LAMBDA --episodes=$EPISODES --reward_type=$RT
-    if [ $? -ne 0 ]; then echo "Step 2 실패 ($RT)"; continue; fi
+        # Step 2: 알고리즘 학습 및 평가 (정확도 향상: eval=500)
+        echo "[Step 2] Training and Evaluating Agents..."
+        $PYTHON_CMD train_all_mdp.py --lambda_val=$LAMBDA --episodes=$EPISODES --reward_type=$RT
+        if [ $? -ne 0 ]; then echo "Step 2 실패 ($RT, L=$LAMBDA)"; continue; fi
 
-    # Step 3: 결과 시각화
-    echo "[Step 3] Visualizing Results..."
-    $PYTHON_CMD visualize_mdp_results.py --lambda_val=$LAMBDA --reward_type=$RT
-    if [ $? -ne 0 ]; then echo "Step 3 실패 ($RT)"; continue; fi
-
+        # Step 3: 결과 시각화
+        echo "[Step 3] Visualizing Results..."
+        $PYTHON_CMD visualize_mdp_results.py --lambda_val=$LAMBDA --episodes=$EPISODES --reward_type=$RT
+        if [ $? -ne 0 ]; then echo "Step 3 실패 ($RT, L=$LAMBDA)"; continue; fi
+    done
 done
 
 echo ""
 echo "=========================================================="
-echo " 모든 리워드 타입에 대한 실험이 완료되었습니다."
+echo " 모든 시나리오(람다 및 리워드 타입)에 대한 실험이 완료되었습니다."
+echo " 결과 폴더(results/)를 확인해주세요."
 echo "=========================================================="

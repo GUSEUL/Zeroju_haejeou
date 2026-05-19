@@ -72,6 +72,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     res_dir = f"results/L_{args.lambda_val}_E_{args.episodes}/{args.reward_type}"
+    os.makedirs(res_dir, exist_ok=True)
     env = MDCMDPEnv(arrival_lambda=args.lambda_val, reward_type=args.reward_type)
     
     plot_training_comparison(args.lambda_val, args.reward_type, res_dir)
