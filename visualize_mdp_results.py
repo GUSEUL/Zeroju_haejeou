@@ -29,10 +29,16 @@ def plot_performance_bars(lambda_val=None, reward_type="standard", res_dir="."):
     df = pd.read_csv(path)
     # Exclude Random agent for clearer comparison
     df = df[df["agent"] != "Random"]
-    fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-    for i, col in enumerate(["reward", "drops", "energy"]):
+    # Updated columns (after Update.md 2025-05-22 revision):
+    #   reward, agent_drops, env_drops, admitted, completed, energy
+    cols = [c for c in ["reward", "agent_drops", "env_drops", "completed", "energy"] if c in df.columns]
+    n = len(cols)
+    fig, ax = plt.subplots(1, n, figsize=(4 * n + 2, 5))
+    if n == 1:
+        ax = [ax]
+    for i, col in enumerate(cols):
         sns.barplot(data=df, x="agent", y=col, ax=ax[i], palette="muted", hue="agent", legend=False)
-        ax[i].set_title(f"{col.capitalize()} ({reward_type})")
+        ax[i].set_title(f"{col.replace('_', ' ').title()} ({reward_type})")
         ax[i].tick_params(axis="x", rotation=30)
     plt.tight_layout()
     plt.savefig(os.path.join(res_dir, f"mdp_performance_bars.png"))

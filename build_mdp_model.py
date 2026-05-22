@@ -3,13 +3,16 @@ import os
 import pickle
 import argparse
 
-def build_model(env_class, lambda_val=1.5, reward_type="standard"):
+def build_model(env_class, lambda_val=1.5, reward_type="standard", seed=42):
     env = env_class(arrival_lambda=lambda_val, reward_type=reward_type)
+    # Seed the env's internal Generator so the 2000-sample MC estimates of
+    # (P, R) are reproducible across runs.
+    env.reset(seed=seed)
     n_states = env.n_states
     n_actions = env.action_space.n
     P = np.zeros((n_states, n_actions, n_states))
     R = np.zeros((n_states, n_actions))
-    print(f"Building MDP Model ({n_states} states) with Lambda={lambda_val}, Reward={reward_type}...")
+    print(f"Building MDP Model ({n_states} states, seed={seed}) with Lambda={lambda_val}, Reward={reward_type}...")
     
     p_task = np.array([0.5, 0.5])
     def get_sys_state_probs(curr):
@@ -58,9 +61,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lambda_val", type=float, default=1.5)
     parser.add_argument("--reward_type", type=str, default="standard")
+    parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
-    
-    P, R = build_model(MDCMDPEnv, lambda_val=args.lambda_val, reward_type=args.reward_type)
+
+    P, R = build_model(MDCMDPEnv, lambda_val=args.lambda_val, reward_type=args.reward_type, seed=args.seed)
     
     # 폴더 생성 로직
     os.makedirs("models", exist_ok=True)

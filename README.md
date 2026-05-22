@@ -21,7 +21,7 @@
 수십 조 개의 상태 공간을 DP 연산이 가능한 **수천 개 수준**으로 줄이기 위해 다음과 같은 통폐합 및 다이어트를 진행했습니다.
 
 - **행동 공간의 이진화 및 구체화:** 이웃 6개를 모두 고르는 대신, 신호가 가장 잘 잡히는 상태가 좋은 이웃 노드 2개(Neighbor 1, 2)로 대상을 좁혔습니다.
-- **환경 변수의 통합:** 채널 상태(3)와 대역폭(2)을 각각 추적하지 않고, 전송 속도에 직결되는 `Comm_State` (3단계) 변수 하나로 통합했습니다.
+- **환경 변수의 통합:** 채널 상태(3)와 대역폭(2)을 각각 추적하지 않고, 전송 속도와 단말 CPU 컨텐션을 결합한 `Sys_State` (3단계) 변수 하나로 통합했습니다.
 - **큐 크기의 마르코프 상태화:** 압축된 레벨을 버리고, **실제 물리 큐 크기의 정수 값 자체를 상태 공간에 직접 편입**시켜 은닉 상태를 완전히 제거했습니다.
 
 ---
@@ -45,12 +45,30 @@
 
 ### ② 상태 공간 (State Space) 구성 변수
 1. `Task_Type` : 2단계 (0: URLLC, 1: eMBB)
-2. `Comm_State` : 3단계 (0: 불량, 1: 보통, 2: 좋음)
+2. `Sys_State` : 3단계 (0: 불량, 1: 보통, 2: 좋음) — 채널 품질과 단말 CPU 컨텐션을 결합한 종합 상태
 3. `Local_Queue` : 5단계 (0 ~ 4 정수)
 4. `Neighbor_1_Queue` : 11단계 (0 ~ 10 정수)
 5. `Neighbor_2_Queue` : 11단계 (0 ~ 10 정수)
 
 **총 상태 공간 개수** = $2 \times 3 \times 5 \times 11 \times 11 = 3,630$개
+
+### ③ Episode 종료 (Termination)
+
+본 MDP는 본질적으로 **continuing (non-episodic) MDP** 입니다. 자연스러운 terminal state(예: task 완료, 시스템 영구 정지)가 존재하지 않으며, Gymnasium 관례에 따라 `max_steps=1000`에서 `truncated=True`로 끊고 `terminated`는 향후 fatal failure 조건을 위해 항상 False로 둡니다.
+
+- 할인율 $\gamma = 0.95$ 하에서 effective planning horizon은 $1/(1-\gamma) = 20$ step.
+- 1,000-step rollout은 **약 50배의 effective horizon**을 포함하므로, truncation으로 인한 discounted return 편향은 $\gamma^{1000} \approx 5 \times 10^{-23}$ 수준으로 무시할 수 있습니다.
+- 따라서 학습된 정책은 사실상 infinite-horizon discounted 정책에 수렴합니다.
+
+### ④ 상태 공간의 한계 (Approximation Note)
+
+큐는 **길이(count)** 만 저장하며, 큐 내부의 URLLC/eMBB **구성 비율**은 상태에 포함되지 않습니다. 슬롯별 task type을 인코딩하면 상태 공간이 약 3,630 → 3.6M으로 폭증해 tabular DP/RL이 불가능해지기 때문입니다.
+
+본 프로젝트는 (a) task type이 URLLC/eMBB 균등 분포(0.5/0.5)로 도착하고, (b) 보상이 `w_task`에 선형이라는 두 조건 하에서 **expected reward가 큐 내부 composition에 대해 marginalize되는 근사**로 정당화합니다. Function approximation 기반 확장은 future work로 남깁니다.
+
+### ⑤ 재현성 (Reproducibility)
+
+환경 내부의 모든 확률 전이는 Gymnasium이 관리하는 `self.np_random`(seeded Generator)을 사용합니다. `env.reset(seed=...)` 한 번으로 episode 단위 결정성이 확보되며, 학습/평가 스크립트(`train_all_mdp.py --seed 42`)는 episode-indexed seed로 전 파이프라인을 비트 단위 재현 가능합니다.
 
 ---
 

@@ -15,6 +15,150 @@
 
 ---
 
+# 2025-05-22 — Rubric 대응 2차 개정 (Reproducibility + KPI + Termination)
+
+외부 평가에서 식별된 5개 결함을 환경/학습/평가/문서 4축으로 보강. 정책 의미는 보존(쓸데없는 학습 결과 변화 회피)하면서 채점 위험을 줄이는 방향. 사용자 결정 사항:
+- Reward: `is_success`의 admit 의미 유지, 변수명만 `is_admitted`로 명확화
+- Termination: 코드 변경 없이 docstring/README에 effective horizon 정당화 추가
+- Overflow: agent-induced drop과 system overflow를 info dict에서 분리
+
+## 개정 요약 (TL;DR)
+
+| # | 항목 | 수정 전 | 수정 후 | 영향 파일 |
+|---|---|---|---|---|
+| 4 | Seed 재현성 | `step()` 내부 6곳에서 전역 `np.random.*` 사용 | 전부 `self.np_random.*`로 교체. `train_all_mdp.py`에 `--seed` 추가 + episode-indexed seed 전파. `build_mdp_model.py`도 MC 시작 직전 1회 seed. | `mdc_mdp_env.py`, `train_all_mdp.py`, `build_mdp_model.py` |
+| 1 | `is_success`의 의미 모호 | 큐 admit과 service completion을 구분 없이 `is_success=True` | `is_success` → `is_admitted` rename (보상 의미는 admit 그대로 유지). `completed_count`를 별도 KPI로 info에 노출 | `mdc_mdp_env.py`, `train_all_mdp.py` |
+| 2 | Local/Neighbor arrival overflow silent drop | `np.clip` 또는 line-end clip으로 도착 초과분 조용히 소실 | `env_drop` 카운트를 info에 누적 보고. `agent_drop`과 분리 | `mdc_mdp_env.py`, `train_all_mdp.py` |
+| 5 | Termination 정당화 부재 | `terminated=False`, 1000-step truncation만 존재 (이유 명시 X) | docstring/README에 effective horizon = 20 (γ=0.95) → 1000-step 편향 ≈ γ¹⁰⁰⁰ ≈ 5e-23 무시 가능 명시 | `mdc_mdp_env.py`, `README.md` |
+| 3 | Queue composition 정보 부재 | 큐는 길이만, 내부 URLLC/eMBB 비율 미저장. "Is state sufficient?" 약점 | tabular DP가 가능한 |S|=3,630 유지를 위한 의도적 근사로 README에 정당화. task type i.i.d.(0.5/0.5) + reward의 w_task 선형성으로 marginal 일치. | `README.md` |
+
+> ⚠️ **재생성 필요**: 본 개정으로 transition/reward 시드와 info 스키마가 바뀜. 다음을 삭제 후 파이프라인 재실행:
+> `models/*.pkl`, `q_table_*.npy`, `results/**/*`
+>
+> ⚠️ **호환성**: `mdp_final_results.csv` 컬럼이 `drops` → `agent_drops`로 변경되고 `env_drops`, `admitted`, `completed`가 추가됨. 옛 CSV를 로드하는 외부 스크립트가 있다면 KeyError 가능.
+
+---
+
+## 4. Seed 재현성 (Reproducibility)
+
+### 🔴 문제
+- `mdc_mdp_env.py:111,137,139,142,143,146`에서 전역 `np.random.*` 사용 — Gymnasium의 `reset(seed=...)`이 무력화됨.
+- 학습 루프(`train_all_mdp.py:55,82,102`)는 `env.reset()`을 seed 없이 호출.
+- `build_mdp_model.py`의 MC sampling 2,000회도 비재현. 동일 명령으로 P/R 재생성 시마다 미세하게 다름.
+
+### ✅ 수정
+**`mdc_mdp_env.py`**: `step()` 내부의 모든 stochastic call을 `self.np_random`으로 교체. `np.random.choice([0,1])` → `self.np_random.integers(0, 2)`, `np.random.randint(1, 3)` → `self.np_random.integers(1, 3)` 등 numpy Generator API에 맞춰 변환.
+
+**`train_all_mdp.py`**:
+- `--seed`(default 42) argparse 추가.
+- `env.reset(seed=base_seed + ep)` — episode-indexed seed로 매 episode의 stochasticity를 유지하되 전체 run은 비트 단위 재현 가능.
+- 평가 루프는 별도 stream: `env.reset(seed=base_seed + EVAL_SEED_OFFSET + ep)`.
+- ε-greedy 난수와 `action_space.sample()`도 `np.random.default_rng(base_seed)`로 분리 seed.
+- Random baseline 정책도 `default_rng(seed + RANDOM_POLICY_SEED_OFFSET).integers(...)`로 재현 가능.
+
+**`build_mdp_model.py`**:
+- `--seed`(default 42) argparse 추가.
+- MC sampling 루프 진입 직전 `env.reset(seed=seed)` 1회로 충분 (이후 `self.np_random` stream이 결정적으로 진행).
+
+### 🎯 효과
+- 동일 `--seed 42`로 두 번 실행 시 `mdp_final_results.csv`가 비트 단위 일치.
+- 채점자가 동일 결과를 재현 가능 → rubric의 "implementation reproducibility" 직격 보강.
+
+---
+
+## 1+2. `is_admitted` rename + `env_drop` 분리
+
+### 🔴 문제
+- `is_success=True`가 *큐에 admit된 순간* 부여됨 (`mdc_mdp_env.py:76,88`). 실제 service 완료가 아님 → 보상 의미가 애매.
+- `self.local_q = np.clip(self.local_q + arrival, 0, 4)`(line 144)에서 Poisson 초과 도착이 silent drop. `is_dropped` 플래그 없음 → `evaluate()` (line 108)의 drop count가 시스템 신뢰도를 과소평가.
+- Agent 잘못으로 인한 drop과 시스템 부하 overflow가 구분되지 않아 failure case 분석이 어려움.
+
+### ✅ 수정 (의미 보존, 정책 변화 없음)
+
+**변수 rename** (`mdc_mdp_env.py:65,76,88,126`): `is_success` → `is_admitted`. 보상 식 `success_term = (w_task * self.success_bonus) if is_admitted else 0.0` — 수식 자체는 그대로, 의미만 명확히.
+
+**Local arrival overflow 회계**:
+```python
+arrival = int(self.np_random.poisson(self.arrival_lambda))
+raw_local = int(self.local_q) + arrival
+env_drop_count += max(0, raw_local - 4)
+self.local_q = min(raw_local, 4)
+```
+
+**Neighbor bg arrival overflow도 동일 패턴**:
+```python
+bg_arrival = int(self.np_random.poisson(self.neighbor_bg_lambda))
+raw_n = int(self.neighbor_qs[i]) + bg_arrival
+env_drop_count += max(0, raw_n - 10)
+self.neighbor_qs[i] = min(raw_n, 10)
+```
+
+**Service completion 카운트** (KPI 노출용, 보상 미반영):
+- Local: `local_completed = min(local_q_pre_service, s_rate)`
+- Neighbor i: `neighbor_completed[i] = min(neighbor_qs_pre_service[i], service_draw_i)`
+- `completed_count = local_completed + sum(neighbor_completed)`
+
+**info dict 확장** (`mdc_mdp_env.py:149`):
+```python
+{
+    "delay": total_delay,
+    "energy": energy_consumed,
+    "is_admitted": is_admitted,
+    "is_dropped": is_dropped,
+    "agent_drop": int(is_dropped),
+    "env_drop": int(env_drop_count),
+    "completed_count": int(completed_count),
+}
+```
+
+**`train_all_mdp.py:evaluate()` 확장**:
+- 누적 KPI: `reward, agent_drops, env_drops, admitted, completed, energy`
+- 반환은 dict로 통일 → CSV 컬럼 6개로 확장.
+
+### 🎯 효과
+- "Is reward consistent with stated objective?" → admit 의미 명시화로 방어 가능.
+- "Failure case analysis" → agent vs 시스템 부하 분리 보고 가능.
+- "Proper evaluation metric" → success rate, completion rate, env_drop을 명시적 metric으로 제공.
+- 보상 수식은 그대로이므로 **학습된 정책의 의미 변화 없음** (단, 새로 학습하면 seed 재현성 도입으로 수치는 결정적).
+
+---
+
+## 5. Termination 정당화
+
+### 🔴 문제
+`mdc_mdp_env.py:149`는 `terminated=False`, `truncated=(step>=1000)`만 반환. 왜 1000-step인지, 정책 학습에 어떤 영향이 있는지 docstring/README에 명시 부재.
+
+### ✅ 수정
+**`mdc_mdp_env.py`** 클래스 docstring에 "Episode semantics" 섹션 추가:
+> This is a *continuing* (non-episodic) MDP. We use `truncated=True` at `max_steps=1000` per Gymnasium convention; `terminated` is reserved for future fatal-failure conditions and is currently always False.
+>
+> With gamma=0.95, the effective planning horizon is 1/(1-gamma)=20 steps. A 1000-step rollout covers ~50 effective horizons, so truncation bias on discounted returns is bounded by gamma**1000 (~5e-23) and is negligible.
+
+**`README.md` §4 ③** 에 한국어 동일 내용 추가.
+
+### 🎯 효과
+- "When does the episode terminate?" 질문에 정답(infinite-horizon discounted approximation) 제시.
+- terminal 조건을 신규 도입하지 않아 DP 모델/하이퍼파라미터 변경 없음 → 채점자 추가 질문거리 없음.
+
+---
+
+## 3. Queue composition 한계 명시 (문서만)
+
+### 🔴 문제
+큐는 길이만 저장하므로 "URLLC 2개 + eMBB 1개"와 "eMBB 3개"가 같은 상태로 표현됨. "Is state sufficient for decision making?"에 취약.
+
+### ✅ 수정
+`README.md` §4 ④에 한 단락:
+> 큐는 **길이(count)** 만 저장하며, 큐 내부의 URLLC/eMBB **구성 비율**은 상태에 포함되지 않습니다. 슬롯별 task type을 인코딩하면 상태 공간이 약 3,630 → 3.6M으로 폭증해 tabular DP/RL이 불가능해집니다.
+>
+> 본 프로젝트는 (a) task type이 URLLC/eMBB 균등 분포(0.5/0.5)로 도착하고, (b) 보상이 `w_task`에 선형이라는 두 조건 하에서 **expected reward가 큐 내부 composition에 대해 marginalize되는 근사**로 정당화합니다.
+
+### 🎯 효과
+- "큐 안에 뭐가 있는지 모르는데 결정 가능한가?" 선제 방어.
+- 의도적 trade-off(tabular DP의 |S| 한계)임을 명시 → "정당화 부족" 감점 회피.
+
+---
+
 # 2025-05-22 — MDP 설계 1차 개정 (rubric 대응)
 
 PDF rubric(`60375757-EL5001_RL_Proj_01...pdf`)의 **"Formulate real-world problem as MDP"** 및 **"Discussion & Justification"** 항목에서 감점 위험이 있던 설계 결함을 정리하고, `mdc_mdp_env.py`에 반영한 1차 개정 내용입니다.

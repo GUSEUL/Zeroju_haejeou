@@ -7,8 +7,34 @@ class MDCMDPEnv(gym.Env):
 
     state[1] ("Sys_State") is a joint index that captures both channel
     quality and local CPU contention; the same index drives transmission
-    factors and local service rate. See MDP_DESIGN_REVISIONS.md for the
-    justification of this design.
+    factors and local service rate. See Update.md for the justification
+    of this design.
+
+    Episode semantics
+    -----------------
+    This is a *continuing* (non-episodic) MDP. We use ``truncated=True`` at
+    ``max_steps=1000`` per Gymnasium convention; ``terminated`` is reserved
+    for future fatal-failure conditions and is currently always False.
+
+    With gamma=0.95, the effective planning horizon is 1/(1-gamma)=20 steps.
+    A 1000-step rollout covers ~50 effective horizons, so truncation bias on
+    discounted returns is bounded by gamma**1000 (~5e-23) and is negligible.
+
+    Reproducibility
+    ---------------
+    All stochastic transitions use ``self.np_random`` (Gymnasium-managed
+    Generator). Pass ``env.reset(seed=...)`` to make rollouts deterministic.
+
+    Info dict keys
+    --------------
+    - ``is_admitted``: task was accepted into a queue this step (was previously
+      named ``is_success``; renamed to reflect admission, not service completion)
+    - ``is_dropped``: agent-induced drop (action 0/1/2 hit a full queue, or action 3)
+    - ``env_drop``: number of tasks lost to *system* overflow this step
+      (Poisson arrivals exceeding local/neighbor queue capacity)
+    - ``completed_count``: number of tasks that finished service this step
+      (KPI metric; not used in reward)
+    - ``delay``, ``energy``: per-step cost components
     """
     def __init__(self, arrival_lambda=None, reward_type="standard"):
         super(MDCMDPEnv, self).__init__()
@@ -31,7 +57,7 @@ class MDCMDPEnv(gym.Env):
         self.beta = 5.0           # local queue penalty scale
         self.beta_n = 3.0         # per-neighbor queue penalty scale
         self.gamma = 20.0         # drop penalty
-        self.success_bonus = 1.0  # base bonus for successful processing (standard only)
+        self.success_bonus = 1.0  # base bonus for successful admission (standard only)
 
         # Normalization factors
         self.max_delay = 5.0
@@ -62,7 +88,7 @@ class MDCMDPEnv(gym.Env):
         delay_trans, delay_comp = 0.0, 0.0
         energy_consumed = 0.0
         is_dropped = False
-        is_success = False
+        is_admitted = False
 
         if action == 0:  # Local
             if self.local_q >= 4:
@@ -73,7 +99,7 @@ class MDCMDPEnv(gym.Env):
                 delay_comp = (self.local_q + 1) / (s_rate * 2.0)
                 energy_consumed = self.energy_costs[sys_state]
                 self.local_q += 1
-                is_success = True
+                is_admitted = True
         elif action == 1 or action == 2:  # Offload to neighbor
             idx = action - 1
             if self.neighbor_qs[idx] >= 10:
@@ -85,7 +111,7 @@ class MDCMDPEnv(gym.Env):
                 energy_consumed = self.energy_costs[sys_state] * 0.6
                 delay_comp = (self.neighbor_qs[idx] + 1) / 4.0 + 0.05
                 self.neighbor_qs[idx] += 1
-                is_success = True
+                is_admitted = True
         elif action == 3:  # Intentional drop
             is_dropped = True
 
@@ -108,7 +134,7 @@ class MDCMDPEnv(gym.Env):
             reward = -(cost_de + penalty_drop)
 
             if self.local_q >= 4 and not is_dropped:
-                reward += np.random.normal(0, 5.0)
+                reward += self.np_random.normal(0, 5.0)
 
         else:  # "standard"
             norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
@@ -123,32 +149,61 @@ class MDCMDPEnv(gym.Env):
             )
 
             penalty_drop = self.gamma if is_dropped else 0.0
-            success_term = (w_task * self.success_bonus) if is_success else 0.0
+            # Bonus is for ADMISSION (queue acceptance), not service completion.
+            # KPI for completion is exposed via info["completed_count"].
+            success_term = (w_task * self.success_bonus) if is_admitted else 0.0
 
             reward = -(cost_delay_energy + penalty_queue + penalty_drop) + success_term
         # --------------------------
 
-        # Transitions
+        # --- Transitions ---
         self.current_step += 1
+
+        # Save post-action / pre-service queue snapshots for completion accounting.
+        local_q_pre_service = self.local_q
+        neighbor_qs_pre_service = self.neighbor_qs.copy()
+
+        # Local service
         s_rate = self.service_rates[sys_state]
-        self.local_q = max(0, self.local_q - s_rate)
+        local_completed = min(local_q_pre_service, s_rate)
+        self.local_q = max(0, local_q_pre_service - s_rate)
+
+        # Neighbor service + background arrivals (env_drop tracks system overflow)
+        env_drop_count = 0
+        neighbor_completed = [0, 0]
         for i in range(2):
-            # Neighbor service
-            self.neighbor_qs[i] = max(0, self.neighbor_qs[i] - np.random.randint(1, 3))
-            # Background arrivals from other users
-            bg_arrival = np.random.poisson(self.neighbor_bg_lambda)
-            self.neighbor_qs[i] = np.clip(self.neighbor_qs[i] + bg_arrival, 0, 10)
+            service_draw = int(self.np_random.integers(1, 3))
+            neighbor_completed[i] = min(int(neighbor_qs_pre_service[i]), service_draw)
+            self.neighbor_qs[i] = max(0, int(neighbor_qs_pre_service[i]) - service_draw)
+            bg_arrival = int(self.np_random.poisson(self.neighbor_bg_lambda))
+            raw_n = int(self.neighbor_qs[i]) + bg_arrival
+            env_drop_count += max(0, raw_n - 10)
+            self.neighbor_qs[i] = min(raw_n, 10)
 
-        next_task_type = np.random.choice([0, 1])
-        arrival = np.random.poisson(self.arrival_lambda)
-        self.local_q = np.clip(self.local_q + arrival, 0, 4)
+        # Local arrivals (Poisson) — overflow recorded as env_drop, not silently clipped
+        next_task_type = int(self.np_random.integers(0, 2))
+        arrival = int(self.np_random.poisson(self.arrival_lambda))
+        raw_local = int(self.local_q) + arrival
+        env_drop_count += max(0, raw_local - 4)
+        self.local_q = min(raw_local, 4)
 
-        next_sys_state = np.clip(sys_state + np.random.choice([-1, 0, 1], p=[0.1, 0.8, 0.1]), 0, 2)
-        self.state = np.array([next_task_type, next_sys_state, self.local_q, self.neighbor_qs[0], self.neighbor_qs[1]], dtype=np.int32)
+        # Sys_state random walk
+        delta = int(self.np_random.choice([-1, 0, 1], p=[0.1, 0.8, 0.1]))
+        next_sys_state = int(np.clip(sys_state + delta, 0, 2))
+
+        completed_count = local_completed + sum(neighbor_completed)
+
+        self.state = np.array(
+            [next_task_type, next_sys_state, self.local_q, self.neighbor_qs[0], self.neighbor_qs[1]],
+            dtype=np.int32,
+        )
 
         return self.state, reward, False, self.current_step >= self.max_steps, {
             "delay": total_delay,
-            "is_dropped": is_dropped,
             "energy": energy_consumed,
-            "is_success": is_success,
+            "is_admitted": is_admitted,
+            "is_dropped": is_dropped,
+            "agent_drop": int(is_dropped),
+            "env_drop": int(env_drop_count),
+            "completed_count": int(completed_count),
         }
