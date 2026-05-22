@@ -4,7 +4,7 @@ import pickle
 import argparse
 from scipy.stats import poisson
 
-def build_model(env_class, lambda_val=1.5, reward_type="standard"):
+def build_model_analytical(lambda_val=1.5, reward_type="standard"):
     n_states = 2 * 3 * 5 * 11 * 11
     n_actions = 4
     P = np.zeros((n_states, n_actions, n_states))
@@ -89,7 +89,7 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
                 q_n1_act += 1
             elif a == 2: # Offload to N2
                 chan_factor = channel_factors[comm]
-                delay_trans = chan_factor * 1.0
+                delay_trans = channel_factors[comm] * 1.0
                 energy_consumed = energy_costs[comm] * 0.6
                 delay_comp = (q_n2 + 1) / 4.0 + 0.05
                 q_n2_act += 1
@@ -164,13 +164,12 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
     return P, R
 
 if __name__ == "__main__":
-    from mdc_mdp_env import MDCMDPEnv
     parser = argparse.ArgumentParser()
     parser.add_argument("--lambda_val", type=float, default=1.5)
     parser.add_argument("--reward_type", type=str, default="standard")
     args = parser.parse_args()
     
-    P, R = build_model(MDCMDPEnv, lambda_val=args.lambda_val, reward_type=args.reward_type)
+    P, R = build_model_analytical(lambda_val=args.lambda_val, reward_type=args.reward_type)
     
     os.makedirs("models", exist_ok=True)
     suffix = f"_{args.reward_type}_L{args.lambda_val}"

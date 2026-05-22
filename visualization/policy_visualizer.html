@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDP Task Offloading Policy Visualizer</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            min-height: 100vh;
+            color: #f1f5f9;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .cell-hover:hover {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+        .action-0 { background-color: #3b82f6; } /* Local: Blue */
+        .action-1 { background-color: #10b981; } /* N1: Emerald Green */
+        .action-2 { background-color: #84cc16; } /* N2: Lime Green */
+        .action-3 { background-color: #ef4444; } /* Drop: Coral Red */
+    </style>
+</head>
+<body class="p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center glass-card p-6 rounded-2xl shadow-xl">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                    MDP Task Offloading Policy Visualizer
+                </h1>
+                <p class="text-slate-400 mt-1">Interactive state space policy explorer & decision analyzer (3,630 States)</p>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    Exploring Starts Verified
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <!-- Sidebar: Parameters Selector -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Experiment Parameters -->
+                <div class="glass-card p-5 rounded-2xl shadow-lg space-y-5">
+                    <h2 class="text-lg font-bold text-slate-200 border-b border-slate-700 pb-2">Experiment Configuration</h2>
+                    
+                    <!-- Lambda (Traffic Load) -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-400">Traffic Load (λ)</label>
+                        <div class="grid grid-cols-3 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('lambda', 0.5)" id="btn-lambda-0.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">0.5</button>
+                            <button onclick="setParam('lambda', 1.5)" id="btn-lambda-1.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">1.5</button>
+                            <button onclick="setParam('lambda', 3.5)" id="btn-lambda-3.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">3.5</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Reward Type -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-400">Reward Formulation</label>
+                        <div class="grid grid-cols-3 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('reward', 'standard')" id="btn-reward-standard" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Standard</button>
+                            <button onclick="setParam('reward', 'sparse')" id="btn-reward-sparse" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Sparse</button>
+                            <button onclick="setParam('reward', 'cliff')" id="btn-reward-cliff" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Cliff</button>
+                        </div>
+                    </div>
+
+                    <!-- Agent -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-400">Agent Algorithm</label>
+                        <div class="flex flex-col space-y-2">
+                            <button onclick="setParam('agent', 'dp')" id="btn-agent-dp" class="w-full text-left py-2 px-3 text-xs font-semibold rounded-xl transition-all focus:outline-none border border-indigo-600/30 bg-indigo-600/20 text-indigo-300">
+                                Dynamic Programming (Optimal)
+                            </button>
+                            <button onclick="setParam('agent', 'ql')" id="btn-agent-ql" class="w-full text-left py-2 px-3 text-xs font-semibold rounded-xl transition-all focus:outline-none border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-slate-200">
+                                Q-Learning (RL)
+                            </button>
+                            <button onclick="setParam('agent', 'sarsa')" id="btn-agent-sarsa" class="w-full text-left py-2 px-3 text-xs font-semibold rounded-xl transition-all focus:outline-none border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-slate-200">
+                                Expected SARSA (RL)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- State Variables -->
+                <div class="glass-card p-5 rounded-2xl shadow-lg space-y-5">
+                    <h2 class="text-lg font-bold text-slate-200 border-b border-slate-700 pb-2">Active State Dimensions</h2>
+                    
+                    <!-- Task Type -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-400">Current Task Type</label>
+                        <div class="grid grid-cols-2 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('task', 0)" id="btn-task-0" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Sensitive</button>
+                            <button onclick="setParam('task', 1)" id="btn-task-1" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Tolerant</button>
+                        </div>
+                        <p class="text-[10px] text-slate-400">Sensitive (w_delay = 2.0) vs Tolerant (w_delay = 0.5)</p>
+                    </div>
+
+                    <!-- Comm State -->
+                    <div class="space-y-2">
+                        <label class="text-sm font-medium text-slate-400">Channel Quality (comm_state)</label>
+                        <div class="grid grid-cols-3 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('comm', 0)" id="btn-comm-0" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Poor (0)</button>
+                            <button onclick="setParam('comm', 1)" id="btn-comm-1" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Normal (1)</button>
+                            <button onclick="setParam('comm', 2)" id="btn-comm-2" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Good (2)</button>
+                        </div>
+                    </div>
+
+                    <!-- Local Queue Length -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <label class="text-sm font-medium text-slate-400">Local Queue (local_q)</label>
+                            <span id="label-local-q" class="text-sm font-semibold text-indigo-400">0 / 4</span>
+                        </div>
+                        <input type="range" min="0" max="4" value="0" step="1" oninput="setLocalQ(this.value)" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        <p class="text-[10px] text-slate-500">Local Queue capacity is 4. Overflow at &gt;= 5</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Heatmap Plot -->
+            <div class="lg:col-span-2 glass-card p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-slate-100">Neighbor Queue Decisions</h2>
+                        <span class="text-xs text-slate-400">Heatmap of neighbor_q1 (Y-axis) vs neighbor_q2 (X-axis)</span>
+                    </div>
+
+                    <!-- Heatmap Grid -->
+                    <div class="flex flex-col items-center">
+                        <div class="flex">
+                            <!-- Y-axis Label -->
+                            <div class="flex items-center justify-center mr-4" style="writing-mode: vertical-lr; transform: rotate(180deg);">
+                                <span class="text-xs font-semibold tracking-wider text-slate-400">NEIGHBOR QUEUE 1 (qn1)</span>
+                            </div>
+                            
+                            <!-- Grid Area -->
+                            <div class="flex flex-col">
+                                <div class="grid grid-cols-11 gap-1" id="heatmap-grid" style="width: 380px; height: 380px;">
+                                    <!-- Dynamic elements inserted by Javascript -->
+                                </div>
+                                <!-- X-axis Label -->
+                                <div class="text-center mt-4">
+                                    <span class="text-xs font-semibold tracking-wider text-slate-400">NEIGHBOR QUEUE 2 (qn2)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legend & Actions Color -->
+                <div class="mt-6 border-t border-slate-700/50 pt-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div class="flex items-center justify-center space-x-2">
+                            <span class="w-4 h-4 rounded action-0 block"></span>
+                            <span class="text-xs text-slate-300">Action 0: Local</span>
+                        </div>
+                        <div class="flex items-center justify-center space-x-2">
+                            <span class="w-4 h-4 rounded action-1 block"></span>
+                            <span class="text-xs text-slate-300">Action 1: N1 Offload</span>
+                        </div>
+                        <div class="flex items-center justify-center space-x-2">
+                            <span class="w-4 h-4 rounded action-2 block"></span>
+                            <span class="text-xs text-slate-300">Action 2: N2 Offload</span>
+                        </div>
+                        <div class="flex items-center justify-center space-x-2">
+                            <span class="w-4 h-4 rounded action-3 block"></span>
+                            <span class="text-xs text-slate-300">Action 3: Drop</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Details & Stats Panel -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Selected State Details -->
+                <div class="glass-card p-5 rounded-2xl shadow-lg space-y-4">
+                    <h2 class="text-lg font-bold text-slate-200 border-b border-slate-700 pb-2 font-semibold">Hover State Details</h2>
+                    <div class="space-y-3" id="state-detail-panel">
+                        <p class="text-sm text-slate-400">Hover over any cell in the heatmap grid to view real-time state configurations and the agent's decision logic.</p>
+                        <div id="hover-active-data" class="hidden space-y-3">
+                            <div class="grid grid-cols-2 gap-2 text-xs bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                                <div><span class="text-slate-500">Task Type:</span> <span id="val-task" class="font-bold"></span></div>
+                                <div><span class="text-slate-500">Channel:</span> <span id="val-comm" class="font-bold"></span></div>
+                                <div><span class="text-slate-500">Local Q:</span> <span id="val-localq" class="font-bold"></span></div>
+                                <div><span class="text-slate-500">Neighbors:</span> <span id="val-neighbors" class="font-bold text-indigo-400"></span></div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <span class="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Greedy Action</span>
+                                <div class="flex items-center space-x-2">
+                                    <span id="val-action-color" class="w-3.5 h-3.5 rounded block"></span>
+                                    <span id="val-action" class="font-bold text-sm"></span>
+                                </div>
+                            </div>
+                            <div class="p-3 rounded-xl bg-indigo-950/20 border border-indigo-900/30">
+                                <span class="text-[10px] text-indigo-400 uppercase tracking-wider block mb-1">Decision Rationale</span>
+                                <p id="val-rationale" class="text-xs text-slate-300 leading-relaxed"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Statistics -->
+                <div class="glass-card p-5 rounded-2xl shadow-lg space-y-4">
+                    <h2 class="text-lg font-bold text-slate-200 border-b border-slate-700 pb-2">Policy Grid Statistics</h2>
+                    <div class="space-y-3">
+                        <p class="text-xs text-slate-400">Distribution of actions across this 121-state neighbor queue grid slice:</p>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span>Action 0 (Local)</span>
+                                <span id="stat-0-pct" class="font-semibold text-slate-300">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+                                <div id="stat-0-bar" class="action-0 h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span>Action 1 (N1 Offload)</span>
+                                <span id="stat-1-pct" class="font-semibold text-slate-300">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+                                <div id="stat-1-bar" class="action-1 h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span>Action 2 (N2 Offload)</span>
+                                <span id="stat-2-pct" class="font-semibold text-slate-300">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+                                <div id="stat-2-bar" class="action-2 h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span>Action 3 (Drop)</span>
+                                <span id="stat-3-pct" class="font-semibold text-slate-300">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+                                <div id="stat-3-bar" class="action-3 h-full rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Load policy data -->
+    <script src="policy_data.js"></script>
+    <script>
+        // State variables initialized
+        let params = {
+            lambda: 1.5,
+            reward: 'standard',
+            agent: 'dp',
+            task: 0,
+            comm: 1,
+            local_q: 0
+        };
+
+        const actionNames = {
+            0: "Action 0: Local Processing",
+            1: "Action 1: Offload to Node 1",
+            2: "Action 2: Offload to Node 2",
+            3: "Action 3: Drop Task"
+        };
+
+        const commNames = ["Poor", "Normal", "Good"];
+
+        // DOM elements
+        const gridContainer = document.getElementById("heatmap-grid");
+        const labelLocalQ = document.getElementById("label-local-q");
+
+        function setParam(type, value) {
+            params[type] = value;
+            
+            // Update buttons style
+            updateButtons(type, value);
+            
+            // Re-render
+            renderGrid();
+        }
+
+        function setLocalQ(val) {
+            params.local_q = parseInt(val);
+            labelLocalQ.innerText = `${val} / 4`;
+            renderGrid();
+        }
+
+        function updateButtons(type, val) {
+            if (type === 'lambda' || type === 'reward' || type === 'task' || type === 'comm') {
+                const prefix = `btn-${type}-`;
+                const buttons = document.querySelectorAll(`[id^="${prefix}"]`);
+                buttons.forEach(btn => {
+                    if (btn.id === `${prefix}${val}`) {
+                        btn.className = "py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
+                        if (type === 'reward' || type === 'comm') {
+                            btn.className = "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
+                        }
+                    } else {
+                        btn.className = "py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
+                        if (type === 'reward' || type === 'comm') {
+                            btn.className = "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
+                        }
+                    }
+                });
+            } else if (type === 'agent') {
+                const agentButtons = {
+                    dp: document.getElementById("btn-agent-dp"),
+                    ql: document.getElementById("btn-agent-ql"),
+                    sarsa: document.getElementById("btn-agent-sarsa")
+                };
+                Object.keys(agentButtons).forEach(key => {
+                    const btn = agentButtons[key];
+                    if (key === val) {
+                        btn.className = "w-full text-left py-2 px-3 text-xs font-semibold rounded-xl transition-all focus:outline-none border border-indigo-600/30 bg-indigo-600/20 text-indigo-300";
+                    } else {
+                        btn.className = "w-full text-left py-2 px-3 text-xs font-semibold rounded-xl transition-all focus:outline-none border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-slate-400 hover:text-slate-200";
+                    }
+                });
+            }
+        }
+
+        function getPolicyKey() {
+            return `L${params.lambda}_${params.reward}_${params.agent}`;
+        }
+
+        function getStateIndex(task, comm, local_q, qn1, qn2) {
+            return task * 1815 + comm * 605 + local_q * 121 + qn1 * 11 + qn2;
+        }
+
+        function getRationale(task, comm, local_q, qn1, qn2, action, rewardType) {
+            if (action === 0) {
+                if (local_q >= 4) return "로컬 대기열이 가득 찼지만, 이웃 대기열(qn1, qn2) 또한 크게 밀려있어 다른 대안이 부재하여 위험을 안고 로컬 큐에 할당합니다. (오버플로우 가능성 높음)";
+                return `이웃 노드의 혼잡도가 크거나 채널 상태가 낮아 무선 송신 지연과 에너지를 소모하는 오프로딩보다, 비교적 여유가 있는 로컬 큐(${local_q}/4)에 적재하여 로컬 처리하는 것이 최적의 판단입니다.`;
+            } else if (action === 1 || action === 2) {
+                const targetIdx = action;
+                const targetQ = targetIdx === 1 ? qn1 : qn2;
+                const otherQ = targetIdx === 1 ? qn2 : qn1;
+                let reason = `로컬 처리 큐(${local_q}/4)보다 대상 이웃 노드 ${targetIdx}의 대기열(${targetQ})이 더 한산하고 채널 조건이 합리적이므로 오프로딩을 선택합니다.`;
+                if (targetQ > otherQ) {
+                    reason += ` 상대 이웃 노드(${otherQ})가 더 비어있음에도 채널 전송속도 혹은 지연시간에 따라 목적지 노드를 ${targetIdx}로 결정했습니다.`;
+                }
+                return reason;
+            } else if (action === 3) {
+                if (rewardType === 'sparse' || rewardType === 'cliff') {
+                    return "드롭에 매우 큰 패널티가 부과되지만, 다른 모든 액션들의 지연시간 비용 합이 드롭 패널티보다 과도하게 커지는 임계점에 도달하여 드롭을 수행합니다.";
+                }
+                return `로컬 큐(${local_q}/4)는 물론 양쪽 이웃 큐(qn1=${qn1}, qn2=${qn2})가 모두 극도로 혼잡(대기열 포화)합니다. 이 상황에서는 무리하게 태스크를 밀어넣어 지연시간을 폭증시키거나 로컬 버퍼를 오버플로우시키는 것보다 패널티(γ=5.0)를 내고 즉시 Drop(폐기) 처리하는 것이 합리적인 최선책입니다.`;
+            }
+            return "";
+        }
+
+        function renderGrid() {
+            gridContainer.innerHTML = "";
+            const key = getPolicyKey();
+            const policy = POLICY_DATA.policies[key];
+            
+            if (!policy) {
+                gridContainer.innerHTML = `<div class="col-span-11 text-center text-xs text-slate-500 py-10">데이터가 없습니다.</div>`;
+                return;
+            }
+
+            let counts = {0: 0, 1: 0, 2: 0, 3: 0};
+
+            // Grid rendering: Y-axis (qn1) goes from 10 down to 0, X-axis (qn2) from 0 to 10
+            for (let qn1 = 10; qn1 >= 0; qn1--) {
+                for (let qn2 = 0; qn2 <= 10; qn2++) {
+                    const s_idx = getStateIndex(params.task, params.comm, params.local_q, qn1, qn2);
+                    const action = policy[s_idx];
+                    
+                    counts[action]++;
+
+                    const cell = document.createElement("div");
+                    cell.className = `action-${action} rounded-sm cursor-pointer transition-all duration-150 cell-hover border border-slate-900/10`;
+                    cell.style.aspectRatio = "1";
+                    
+                    // Hover event
+                    cell.addEventListener("mouseenter", () => {
+                        showDetails(params.task, params.comm, params.local_q, qn1, qn2, action);
+                    });
+
+                    gridContainer.appendChild(cell);
+                }
+            }
+
+            // Update stats
+            const totalCells = 121;
+            for (let a = 0; a <= 3; a++) {
+                const pct = ((counts[a] / totalCells) * 100).toFixed(1);
+                document.getElementById(`stat-${a}-pct`).innerText = `${pct}%`;
+                document.getElementById(`stat-${a}-bar`).style.width = `${pct}%`;
+            }
+        }
+
+        function showDetails(task, comm, local_q, qn1, qn2, action) {
+            document.getElementById("hover-active-data").classList.remove("hidden");
+            document.getElementById("state-detail-panel").children[0].classList.add("hidden");
+
+            document.getElementById("val-task").innerText = task === 0 ? "Sensitive" : "Tolerant";
+            document.getElementById("val-comm").innerText = commNames[comm];
+            document.getElementById("val-localq").innerText = `${local_q} / 4`;
+            document.getElementById("val-neighbors").innerText = `qn1: ${qn1}, qn2: ${qn2}`;
+            
+            const colorEl = document.getElementById("val-action-color");
+            colorEl.className = "w-3.5 h-3.5 rounded block";
+            colorEl.classList.add(`action-${action}`);
+            
+            document.getElementById("val-action").innerText = actionNames[action];
+            document.getElementById("val-rationale").innerText = getRationale(task, comm, local_q, qn1, qn2, action, params.reward);
+        }
+
+        // Initialize grid on load
+        window.addEventListener("DOMContentLoaded", () => {
+            // Set initial state matching UI
+            updateButtons('lambda', params.lambda);
+            updateButtons('reward', params.reward);
+            updateButtons('agent', params.agent);
+            updateButtons('task', params.task);
+            updateButtons('comm', params.comm);
+            renderGrid();
+        });
+    </script>
+</body>
+</html>

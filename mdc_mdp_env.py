@@ -1,6 +1,8 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import random
+import math
 
 class MDCMDPEnv(gym.Env):
     def __init__(self, arrival_lambda=None, reward_type="standard"):
@@ -22,26 +24,39 @@ class MDCMDPEnv(gym.Env):
         # Reward Hyperparameters
         self.w = 0.6 # Weight for delay
         self.beta = 5.0 # Queue penalty scaling
-        self.gamma = 20.0 # Drop penalty
+        self.beta_neighbor = 5.0 # Neighbor queue penalty scaling
+        self.gamma = 5.0 # Drop penalty (reduced to allow Drop to be optimal under high congestion)
         
         # Normalization factors
         self.max_delay = 5.0 
         self.max_energy = 1.0
         self.max_local_q = 5.0
+
+        # Pre-generated Poisson arrivals for speed
+        self.arrival_buffer = np.random.poisson(self.arrival_lambda, size=100000)
+        self.arrival_idx = 0
         
         self.reset()
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.local_q = 0
-        self.neighbor_qs = np.zeros(2, dtype=np.int32)
-        self.comm_state = 1
+        self.arrival_idx = 0
+        if options and options.get("random_start", False):
+            self.local_q = random.randint(0, 4)
+            self.neighbor_qs = [random.randint(0, 10), random.randint(0, 10)]
+            self.comm = random.randint(0, 2)
+            task_type = random.randint(0, 1)
+            self.state = np.array([task_type, self.comm, self.local_q, self.neighbor_qs[0], self.neighbor_qs[1]], dtype=np.int32)
+        else:
+            self.local_q = 0
+            self.neighbor_qs = [0, 0]
+            self.comm = 1
+            self.state = np.array([0, 1, 0, 0, 0], dtype=np.int32)
         self.current_step = 0
-        self.state = np.array([0, 1, 0, 0, 0], dtype=np.int32) 
         return self.state, {}
 
     def get_state_index(self, state_array):
-        return np.ravel_multi_index(state_array, self.observation_space.nvec)
+        return int(state_array[0] * 1815 + state_array[1] * 605 + state_array[2] * 121 + state_array[3] * 11 + state_array[4])
 
     def step(self, action):
         task_type, comm, q_local, q_n1, q_n2 = self.state
@@ -73,30 +88,42 @@ class MDCMDPEnv(gym.Env):
         total_delay = delay_trans + delay_comp
         w_task = 2.0 if task_type == 0 else 0.5
         
+        # Fast min/max clip
+        norm_delay = total_delay / self.max_delay
+        if norm_delay < 0.0: norm_delay = 0.0
+        elif norm_delay > 1.0: norm_delay = 1.0
+        
+        norm_energy = energy_consumed / self.max_energy
+        if norm_energy < 0.0: norm_energy = 0.0
+        elif norm_energy > 1.0: norm_energy = 1.0
+        
+        cost_de = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
+        
         if self.reward_type == "sparse":
-            # Sparse: Only care about drops, very small step penalty
-            reward = -100.0 if is_dropped else -0.1
+            # Sparse: Only care about drops, very small step penalty, plus mild regularization
+            reward = -100.0 if is_dropped else (-0.1 - 0.01 * cost_de)
             
         elif self.reward_type == "cliff":
             # Cliff: Huge penalty for drop, and noise near the cliff (local_q=4)
-            norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
-            norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
-            cost_de = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
-            
             penalty_drop = 1000.0 if is_dropped else 0.0
-            reward = -(cost_de + penalty_drop)
+            penalty_neighbor = 0.0
+            if action == 1 or action == 2:
+                idx = action - 1
+                penalty_neighbor = self.beta_neighbor * ((self.neighbor_qs[idx] / 10.0) ** 2)
+            reward = -(cost_de + penalty_drop + penalty_neighbor)
             
             if self.local_q >= 4 and not is_dropped:
                 # Add high variance noise near the edge to scare SARSA
-                reward += np.random.normal(0, 5.0)
+                reward += random.normalvariate(0, 5.0)
                 
         else: # "standard"
-            norm_delay = np.clip(total_delay / self.max_delay, 0.0, 1.0)
-            norm_energy = np.clip(energy_consumed / self.max_energy, 0.0, 1.0)
-            cost_delay_energy = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
             penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
             penalty_drop = self.gamma if is_dropped else 0.0
-            reward = - (cost_delay_energy + penalty_queue + penalty_drop)
+            penalty_neighbor = 0.0
+            if action == 1 or action == 2:
+                idx = action - 1
+                penalty_neighbor = self.beta_neighbor * ((self.neighbor_qs[idx] / 10.0) ** 2)
+            reward = - (cost_de + penalty_queue + penalty_drop + penalty_neighbor)
         # --------------------------
 
         # Transitions
@@ -104,14 +131,48 @@ class MDCMDPEnv(gym.Env):
         s_rate = self.service_rates[comm]
         self.local_q = max(0, self.local_q - s_rate)
         for i in range(2):
-            self.neighbor_qs[i] = max(0, self.neighbor_qs[i] - np.random.randint(1, 3))
-            self.neighbor_qs[i] = np.clip(self.neighbor_qs[i], 0, 10)
+            served = 1 if random.random() < 0.5 else 2
+            new_q = self.neighbor_qs[i] - served
+            if new_q < 0:
+                new_q = 0
+            self.neighbor_qs[i] = new_q
 
-        next_task_type = np.random.choice([0, 1])
-        arrival = np.random.poisson(self.arrival_lambda)
-        self.local_q = np.clip(self.local_q + arrival, 0, 4)
+        next_task_type = 0 if random.random() < 0.5 else 1
+        
+        # True Poisson arrival sampling (uncapped, buffered)
+        arrival = int(self.arrival_buffer[self.arrival_idx])
+        self.arrival_idx = (self.arrival_idx + 1) % 100000
+            
+        # Background arrivals and overflow drops
+        num_bg_drops = max(0, self.local_q + arrival - 4)
+        bg_dropped = num_bg_drops > 0
+        self.local_q = min(4, self.local_q + arrival)
+        
+        # Apply drop penalty for background overflow
+        if bg_dropped:
+            if self.reward_type == "sparse":
+                reward -= 100.0 * num_bg_drops
+            elif self.reward_type == "cliff":
+                reward -= 1000.0 * num_bg_drops
+            else: # standard
+                reward -= self.gamma * num_bg_drops
+                
+        is_dropped_overall = is_dropped or bg_dropped
+        total_drops = (1 if is_dropped else 0) + num_bg_drops
 
-        next_comm = np.clip(comm + np.random.choice([-1, 0, 1], p=[0.1, 0.8, 0.1]), 0, 2)
+        r_comm = random.random()
+        if r_comm < 0.1:
+            change = -1
+        elif r_comm > 0.9:
+            change = 1
+        else:
+            change = 0
+        next_comm = comm + change
+        if next_comm < 0:
+            next_comm = 0
+        elif next_comm > 2:
+            next_comm = 2
+            
         self.state = np.array([next_task_type, next_comm, self.local_q, self.neighbor_qs[0], self.neighbor_qs[1]], dtype=np.int32)
         
-        return self.state, reward, False, self.current_step >= self.max_steps, {"delay": total_delay, "is_dropped": is_dropped, "energy": energy_consumed}
+        return self.state, reward, False, self.current_step >= self.max_steps, {"delay": total_delay, "is_dropped": is_dropped_overall, "energy": energy_consumed, "dropped_count": total_drops}

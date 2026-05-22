@@ -4,23 +4,24 @@ import os
 import pickle
 import time
 import argparse
+import random
 from mdc_mdp_env import MDCMDPEnv
 
-def value_iteration(P, R, gamma=0.95, theta=1e-6):
+def value_iteration(P, R, gamma=0.95, theta=1e-12):
     n_states = P.shape[0]
     V = np.zeros(n_states)
     start_time = time.time()
     while True:
         delta = 0
+        V_old = V.copy()
         for s in range(n_states):
-            v = V[s]
-            V[s] = np.max(R[s] + gamma * np.dot(P[s], V))
-            delta = max(delta, abs(v - V[s]))
+            V[s] = np.max(R[s] + gamma * np.dot(P[s], V_old))
+            delta = max(delta, abs(V_old[s] - V[s]))
         if delta < theta: break
-    policy = np.array([np.argmax(R[s] + gamma * np.dot(P[s], V)) for s in range(n_states)])
+    policy = np.array([np.argmax(np.round(R[s] + gamma * np.dot(P[s], V), decimals=9)) for s in range(n_states)])
     return policy, V, time.time() - start_time
 
-def policy_iteration(P, R, gamma=0.95, theta=1e-6):
+def policy_iteration(P, R, gamma=0.95, theta=1e-12):
     n_states = P.shape[0]
     policy = np.zeros(n_states, dtype=int)
     start_time = time.time()
@@ -28,15 +29,16 @@ def policy_iteration(P, R, gamma=0.95, theta=1e-6):
         V = np.zeros(n_states)
         while True:
             delta = 0
+            V_old = V.copy()
             for s in range(n_states):
-                v = V[s]; a = policy[s]
-                V[s] = R[s, a] + gamma * np.dot(P[s, a], V)
-                delta = max(delta, abs(v - V[s]))
+                a = policy[s]
+                V[s] = R[s, a] + gamma * np.dot(P[s, a], V_old)
+                delta = max(delta, abs(V_old[s] - V[s]))
             if delta < theta: break
         stable = True
         for s in range(n_states):
             old_a = policy[s]
-            policy[s] = np.argmax(R[s] + gamma * np.dot(P[s], V))
+            policy[s] = np.argmax(np.round(R[s] + gamma * np.dot(P[s], V), decimals=9))
             if old_a != policy[s]: stable = False
         if stable: break
     return policy, V, time.time() - start_time
@@ -48,11 +50,11 @@ def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
         return np.load(q_path), [], 0.0
     
     q = np.zeros((env.n_states, env.action_space.n))
-    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.8))
+    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.4))
     logs = []
     start_time = time.time()
     for ep in range(episodes):
-        s, _ = env.reset(); ep_r = 0
+        s, _ = env.reset(options={"random_start": True}); ep_r = 0
         while True:
             si = env.get_state_index(s)
             a = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[si])
@@ -75,19 +77,24 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
         return np.load(q_path), [], 0.0
 
     q = np.zeros((env.n_states, env.action_space.n))
-    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.8))
+    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.4))
     logs = []
     start_time = time.time()
     for ep in range(episodes):
-        s, _ = env.reset(); si = env.get_state_index(s)
-        a = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[si])
+        s, _ = env.reset(options={"random_start": True}); si = env.get_state_index(s)
         ep_r = 0
         while True:
+            # Epsilon-greedy action selection
+            a = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[si])
             ns, r, term, trunc, _ = env.step(a)
             ni = env.get_state_index(ns)
-            na = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[ni])
-            q[si, a] += alpha * (r + gamma * q[ni, na] - q[si, a])
-            ep_r += r; si = ni; a = na
+            
+            # Expected SARSA update
+            best_a = np.argmax(q[ni])
+            expected_v = (1.0 - eps) * q[ni, best_a] + (eps / 4.0) * np.sum(q[ni])
+            
+            q[si, a] += alpha * (r + gamma * expected_v - q[si, a])
+            ep_r += r; si = ni
             if term or trunc: break
         if (ep + 1) % 500 == 0: print(f" Episode {ep+1}/{episodes}...")
         eps = max(eps_min, eps * decay)
@@ -96,16 +103,20 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
     np.save(q_path, q)
     return q, logs, time.time() - start_time
 
-def evaluate(env, pol, is_q=False):
+def evaluate(env, pol, is_q=False, gamma=0.95):
+    np.random.seed(42)
+    random.seed(42)
     rr, dd, ee = [], [], []
     for _ in range(500):
         s, _ = env.reset(); er, ed, ee_episode = 0, 0, 0
+        t = 0
         while True:
             a = np.argmax(pol[env.get_state_index(s)]) if is_q else pol[env.get_state_index(s)]
             s, r, term, trunc, info = env.step(a)
-            er += r
+            er += (gamma ** t) * r
             ee_episode += info.get("energy", 0)
-            if info.get("is_dropped", False): ed += 1
+            ed += info.get("dropped_count", 1 if info.get("is_dropped", False) else 0)
+            t += 1
             if term or trunc: break
         rr.append(er); dd.append(ed); ee.append(ee_episode)
     return np.mean(rr), np.mean(dd), np.mean(ee)
@@ -132,7 +143,8 @@ if __name__ == "__main__":
         print(f"Loading MDP model: {model_path}")
         with open(model_path, "rb") as f: P, R = pickle.load(f)
         for n, f in [("Policy Iteration", policy_iteration), ("Value Iteration", value_iteration)]:
-            pol, _, t = f(P, R); r, d, e = evaluate(env, pol)
+            pol, _, t = f(P, R)
+            r, d, e = evaluate(env, pol)
             results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
             
     for n, f in [("SARSA", train_sarsa), ("Q-Learning", train_q_learning)]:
