@@ -2,6 +2,8 @@
 
 이 프로젝트는 MDC(Mobile Distributed Computing) 태스크 오프로딩 문제를 MDP(Markov Decision Process)로 모델링하고, 다양한 알고리즘을 통해 최적의 정책을 학습하고 비교하는 프레임워크입니다.
 
+> ⚠️ **설계 개정 이력**: 본 README의 일부 명세(특히 보상 함수, Comm_State 명명, neighbor 큐 처리)는 PDF rubric 검토를 통해 개정되었습니다. 최신 사양과 변경 사유는 [`MDP_DESIGN_REVISIONS.md`](./MDP_DESIGN_REVISIONS.md)를 참조하세요.
+
 ---
 
 ## 1. 기존 코드의 문제점 분석 (왜 완전한 MDP가 아니었는가?)
