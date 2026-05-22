@@ -57,7 +57,7 @@ def plot_policy_heatmap(policy, env, title, lambda_val=None, reward_type="standa
     plt.figure(figsize=(8, 6))
     sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", xticklabels=range(5), yticklabels=["Poor", "Normal", "Good"])
     plt.title(f"Policy: {title} ({reward_type}) (0:Loc, 1:N1, 2:N2, 3:Drop)")
-    plt.xlabel("Local Queue"); plt.ylabel("Comm State")
+    plt.xlabel("Local Queue"); plt.ylabel("Sys State")
     plt.savefig(os.path.join(res_dir, f"mdp_heatmap_{title.lower().replace(' ', '_')}.png"))
     plt.close()
 
