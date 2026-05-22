@@ -1,6 +1,23 @@
-# MDP 설계 개정 노트 (Design Revisions)
+# Update Log (변경 이력)
 
-본 문서는 PDF rubric(`60375757-EL5001_RL_Proj_01...pdf`)의 **"Formulate real-world problem as MDP"** 및 **"Discussion & Justification"** 항목에서 감점 위험이 있던 설계 결함을 정리하고, `mdc_mdp_env.py`에 반영한 수정 내용을 사람이 읽기 좋은 형태로 정리한 변경 이력입니다.
+본 문서는 프로젝트(코드/설계/문서)의 **누적 변경 이력**을 기록합니다.
+
+## 작성 규칙
+- 메인 문서는 [`README.md`](./README.md)이며, 본 문서는 README를 보완하는 changelog입니다.
+- 신규 변경은 **이 파일 가장 위(최신)** 에 추가합니다 (역연대순, 최근 항목이 위).
+- 각 변경 그룹은 `# YYYY-MM-DD — 한 줄 요약` 헤더로 시작합니다.
+- 항목 내부는 다음 구조를 권장합니다.
+  - 🔴 문제 / 동기
+  - ✅ 수정 내용 (코드 스니펫 포함)
+  - 🎯 효과 / 영향 파일
+- 결과물(`models/*.pkl`, `q_table_*.npy`, `results/`) 재생성이 필요한 경우 항목 말미에 명시합니다.
+- README의 명세와 충돌 시 **본 문서의 최신 항목이 우선**입니다. 안정화된 변경은 추후 README로 반영합니다.
+
+---
+
+# 2025-05-22 — MDP 설계 1차 개정 (rubric 대응)
+
+PDF rubric(`60375757-EL5001_RL_Proj_01...pdf`)의 **"Formulate real-world problem as MDP"** 및 **"Discussion & Justification"** 항목에서 감점 위험이 있던 설계 결함을 정리하고, `mdc_mdp_env.py`에 반영한 1차 개정 내용입니다.
 
 수정 순서: **#1 → #2 → #5 → #3 → #4 (+ #7 동반 수정)**
 
