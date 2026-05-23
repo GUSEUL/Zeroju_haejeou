@@ -86,13 +86,17 @@ class MDCMDPEnv(gym.Env):
 
         # --- Reward Calculation Logic ---
         total_delay = delay_trans + delay_comp
-        w_task = 2.0 if task_type == 0 else 0.5
+        if self.reward_type == "improved":
+            w_task = 2.5 if task_type == 0 else 0.5
+        else:
+            w_task = 2.0 if task_type == 0 else 0.5
         
         # Fast min/max clip
         norm_delay = total_delay / self.max_delay
         if norm_delay < 0.0: norm_delay = 0.0
         elif norm_delay > 1.0: norm_delay = 1.0
         
+        # Fast min/max clip
         norm_energy = energy_consumed / self.max_energy
         if norm_energy < 0.0: norm_energy = 0.0
         elif norm_energy > 1.0: norm_energy = 1.0
@@ -116,6 +120,19 @@ class MDCMDPEnv(gym.Env):
                 # Add high variance noise near the edge to scare SARSA
                 reward += random.normalvariate(0, 5.0)
                 
+        elif self.reward_type == "improved":
+            gamma_task = 30.0 if task_type == 0 else 10.0
+            beta_task = 8.0 if task_type == 0 else 3.0
+            beta_neighbor_task = 6.0 if task_type == 0 else 3.0
+            
+            penalty_queue = beta_task * ((self.local_q / self.max_local_q) ** 2)
+            penalty_drop = gamma_task if is_dropped else 0.0
+            penalty_neighbor = 0.0
+            if action == 1 or action == 2:
+                idx = action - 1
+                penalty_neighbor = beta_neighbor_task * ((self.neighbor_qs[idx] / 10.0) ** 2)
+            reward = - (cost_de + penalty_queue + penalty_drop + penalty_neighbor)
+            
         else: # "standard"
             penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
             penalty_drop = self.gamma if is_dropped else 0.0
@@ -154,6 +171,9 @@ class MDCMDPEnv(gym.Env):
                 reward -= 100.0 * num_bg_drops
             elif self.reward_type == "cliff":
                 reward -= 1000.0 * num_bg_drops
+            elif self.reward_type == "improved":
+                gamma_task = 30.0 if task_type == 0 else 10.0
+                reward -= gamma_task * num_bg_drops
             else: # standard
                 reward -= self.gamma * num_bg_drops
                 

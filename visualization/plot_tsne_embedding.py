@@ -131,8 +131,8 @@ def main():
         plt.savefig(out_path, dpi=150)
         print(f"Saved t-SNE plot to {out_path}")
         
-        print("Displaying plot...")
-        plt.show()
+        # print("Displaying plot...")
+        # plt.show()
         plt.close()
 
 if __name__ == "__main__":

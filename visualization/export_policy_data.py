@@ -35,8 +35,8 @@ def main():
     parser.add_argument("--episodes", type=int, default=30000)
     args = parser.parse_args()
     
-    lambdas = [0.5, 1.5, 3.5]
-    reward_types = ["standard", "sparse", "cliff"]
+    lambdas = [0.1, 0.5, 1.5, 3.0]
+    reward_types = ["standard", "sparse", "cliff", "improved"]
     
     data = {
         "lambdas": lambdas,
@@ -58,8 +58,11 @@ def main():
             else:
                 print(f"DP Model not found: {model_path}")
                 
+            # Episode count selection: 5000 for improved, 30000 (args.episodes) for baseline
+            ep = 5000 if r == "improved" else args.episodes
+            
             # 2. Q-Learning
-            ql_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_ql.npy"
+            ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.npy"
             ql_policy = load_rl_policy(ql_path)
             if ql_policy is not None:
                 data["policies"][f"{key_prefix}_ql"] = ql_policy
@@ -68,7 +71,7 @@ def main():
                 print(f"Q-Learning Q-table not found: {ql_path}")
                 
             # 3. Expected SARSA
-            sarsa_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_sarsa.npy"
+            sarsa_path = f"results/L_{l}_E_{ep}/{r}/q_table_sarsa.npy"
             sarsa_policy = load_rl_policy(sarsa_path)
             if sarsa_policy is not None:
                 data["policies"][f"{key_prefix}_sarsa"] = sarsa_policy

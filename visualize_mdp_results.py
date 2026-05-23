@@ -68,7 +68,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--lambda_val", type=float, default=1.5)
     parser.add_argument("--episodes", type=int, default=5000)
-    parser.add_argument("--reward_type", type=str, default="standard", choices=["standard", "sparse", "cliff"])
+    parser.add_argument("--reward_type", type=str, default="standard", choices=["standard", "sparse", "cliff", "improved"])
     args = parser.parse_args()
     
     res_dir = f"results/L_{args.lambda_val}_E_{args.episodes}/{args.reward_type}"

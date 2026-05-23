@@ -62,20 +62,22 @@
                     <!-- Lambda (Traffic Load) -->
                     <div class="space-y-2">
                         <label class="text-sm font-medium text-slate-400">Traffic Load (λ)</label>
-                        <div class="grid grid-cols-3 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
-                            <button onclick="setParam('lambda', 0.5)" id="btn-lambda-0.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">0.5</button>
-                            <button onclick="setParam('lambda', 1.5)" id="btn-lambda-1.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">1.5</button>
-                            <button onclick="setParam('lambda', 3.5)" id="btn-lambda-3.5" class="py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">3.5</button>
+                        <div class="grid grid-cols-4 gap-1.5 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('lambda', 0.1)" id="btn-lambda-0.1" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">0.1</button>
+                            <button onclick="setParam('lambda', 0.5)" id="btn-lambda-0.5" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">0.5</button>
+                            <button onclick="setParam('lambda', 1.5)" id="btn-lambda-1.5" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">1.5</button>
+                            <button onclick="setParam('lambda', 3.0)" id="btn-lambda-3.0" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">3.0</button>
                         </div>
                     </div>
                     
                     <!-- Reward Type -->
                     <div class="space-y-2">
                         <label class="text-sm font-medium text-slate-400">Reward Formulation</label>
-                        <div class="grid grid-cols-3 gap-2 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
-                            <button onclick="setParam('reward', 'standard')" id="btn-reward-standard" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Standard</button>
-                            <button onclick="setParam('reward', 'sparse')" id="btn-reward-sparse" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Sparse</button>
-                            <button onclick="setParam('reward', 'cliff')" id="btn-reward-cliff" class="py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Cliff</button>
+                        <div class="grid grid-cols-4 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                            <button onclick="setParam('reward', 'standard')" id="btn-reward-standard" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Standard</button>
+                            <button onclick="setParam('reward', 'sparse')" id="btn-reward-sparse" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Sparse</button>
+                            <button onclick="setParam('reward', 'cliff')" id="btn-reward-cliff" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Cliff</button>
+                            <button onclick="setParam('reward', 'improved')" id="btn-reward-improved" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Improved</button>
                         </div>
                     </div>
 
@@ -310,15 +312,22 @@
                 const prefix = `btn-${type}-`;
                 const buttons = document.querySelectorAll(`[id^="${prefix}"]`);
                 buttons.forEach(btn => {
-                    if (btn.id === `${prefix}${val}`) {
+                    const checkVal = type === 'lambda' ? Number(val).toFixed(1) : val;
+                    if (btn.id === `${prefix}${checkVal}`) {
                         btn.className = "py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
                         if (type === 'reward' || type === 'comm') {
-                            btn.className = "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
+                            btn.className = type === 'reward' ? "py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white" : "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
+                        }
+                        if (type === 'lambda') {
+                            btn.className = "py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white";
                         }
                     } else {
                         btn.className = "py-1.5 px-3 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
                         if (type === 'reward' || type === 'comm') {
-                            btn.className = "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
+                            btn.className = type === 'reward' ? "py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200" : "py-1.5 px-2 text-xs font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
+                        }
+                        if (type === 'lambda') {
+                            btn.className = "py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200";
                         }
                     }
                 });
@@ -340,7 +349,8 @@
         }
 
         function getPolicyKey() {
-            return `L${params.lambda}_${params.reward}_${params.agent}`;
+            const lStr = Number(params.lambda).toFixed(1);
+            return `L${lStr}_${params.reward}_${params.agent}`;
         }
 
         function getStateIndex(task, comm, local_q, qn1, qn2) {
@@ -363,6 +373,10 @@
             } else if (action === 3) {
                 if (rewardType === 'sparse' || rewardType === 'cliff') {
                     return "드롭에 매우 큰 패널티가 부과되지만, 다른 모든 액션들의 지연시간 비용 합이 드롭 패널티보다 과도하게 커지는 임계점에 도달하여 드롭을 수행합니다.";
+                }
+                if (rewardType === 'improved') {
+                    const penalty = task === 0 ? "30.0" : "10.0";
+                    return `QoS 최적화 환경에서 ${task === 0 ? "URLLC(민감)" : "eMBB(일반)"} 태스크에 대기열 혼잡에 따른 지연시간 폭증 위험이 존재하여, 패널티(γ=${penalty})를 지불하고 의도적인 태스크 드롭을 단행합니다.`;
                 }
                 return `로컬 큐(${local_q}/4)는 물론 양쪽 이웃 큐(qn1=${qn1}, qn2=${qn2})가 모두 극도로 혼잡(대기열 포화)합니다. 이 상황에서는 무리하게 태스크를 밀어넣어 지연시간을 폭증시키거나 로컬 버퍼를 오버플로우시키는 것보다 패널티(γ=5.0)를 내고 즉시 Drop(폐기) 처리하는 것이 합리적인 최선책입니다.`;
             }

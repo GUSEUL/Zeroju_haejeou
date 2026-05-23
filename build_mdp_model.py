@@ -110,17 +110,27 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
 
             # Reward
             total_delay = delay_trans + delay_comp
-            w_task = 2.0 if task == 0 else 0.5
+            if reward_type == "improved":
+                w_task = 2.5 if task == 0 else 0.5
+            else:
+                w_task = 2.0 if task == 0 else 0.5
             
             norm_delay = np.clip(total_delay / max_delay, 0.0, 1.0)
             norm_energy = np.clip(energy_consumed / max_energy, 0.0, 1.0)
             cost_de = w_task * w * norm_delay + (1.0 - w) * norm_energy
             
             penalty_neighbor = 0.0
-            if a == 1:
-                penalty_neighbor = beta_neighbor * ((q_n1_act / 10.0) ** 2)
-            elif a == 2:
-                penalty_neighbor = beta_neighbor * ((q_n2_act / 10.0) ** 2)
+            if reward_type == "improved":
+                beta_neighbor_task = 6.0 if task == 0 else 3.0
+                if a == 1:
+                    penalty_neighbor = beta_neighbor_task * ((q_n1_act / 10.0) ** 2)
+                elif a == 2:
+                    penalty_neighbor = beta_neighbor_task * ((q_n2_act / 10.0) ** 2)
+            else:
+                if a == 1:
+                    penalty_neighbor = beta_neighbor * ((q_n1_act / 10.0) ** 2)
+                elif a == 2:
+                    penalty_neighbor = beta_neighbor * ((q_n2_act / 10.0) ** 2)
 
             if reward_type == "sparse":
                 # Sparse with mild regularization
@@ -129,6 +139,12 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
             elif reward_type == "cliff":
                 penalty_drop = 1000.0 if is_dropped else 0.0
                 reward = -(cost_de + penalty_drop + penalty_neighbor + 1000.0 * exp_bg_drops)
+            elif reward_type == "improved":
+                gamma_task = 30.0 if task == 0 else 10.0
+                beta_task = 8.0 if task == 0 else 3.0
+                penalty_queue = beta_task * ((q_l_act / max_local_q) ** 2)
+                penalty_drop = gamma_task if is_dropped else 0.0
+                reward = -(cost_de + penalty_queue + penalty_drop + penalty_neighbor + gamma_task * exp_bg_drops)
             else: # standard
                 penalty_queue = beta * ((q_l_act / max_local_q) ** 2)
                 penalty_drop = gamma if is_dropped else 0.0
