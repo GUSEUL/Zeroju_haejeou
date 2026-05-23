@@ -65,7 +65,7 @@ def main():
     
     # 3. Fit t-SNE
     print("Running t-SNE on 3,630 states...")
-    tsne = TSNE(n_components=2, perplexity=40, n_iter=1000, random_state=42, n_jobs=-1)
+    tsne = TSNE(n_components=2, perplexity=40, n_iter_without_progress=1000, random_state=42, n_jobs=-1)
     states_2d = tsne.fit_transform(states_scaled)
     print("t-SNE embedding computed.")
     
@@ -77,23 +77,33 @@ def main():
     policies = {}
     
     # Load DP
-    model_path = f"models/mdp_model_{reward_type}_L{lambda_val}.pkl"
+    model_path = os.path.join("models", f"mdp_model_{reward_type}_L{lambda_val}.pkl")
+    print(f"Attempting to load DP model from: {model_path}")
     dp_pol = solve_dp(model_path)
     if dp_pol is not None:
         policies["DP Optimal"] = dp_pol
+        print("Successfully loaded DP Optimal policy.")
+    else:
+        print(f"Warning: DP model file not found: {model_path}")
         
     # Load Q-Learning
     ql_path = f"{res_dir}/q_table_ql.npy"
     ql_pol = load_rl_policy(ql_path)
     if ql_pol is not None:
         policies["Q-Learning"] = ql_pol
+        print("Successfully loaded Q-Learning policy.")
         
     # Load Expected SARSA
     sarsa_path = f"{res_dir}/q_table_sarsa.npy"
     sarsa_pol = load_rl_policy(sarsa_path)
     if sarsa_pol is not None:
         policies["Expected SARSA"] = sarsa_pol
+        print("Successfully loaded Expected SARSA policy.")
         
+    if not policies:
+        print("Error: No policies found to plot. Please check if model files or RL results exist for the given parameters.")
+        return
+
     # Generate scatter plot for each policy
     for name, policy in policies.items():
         plt.figure(figsize=(10, 8))
@@ -119,8 +129,11 @@ def main():
         
         out_path = os.path.join(res_dir, f"policy_tsne_{name.lower().replace(' ', '_')}.png")
         plt.savefig(out_path, dpi=150)
-        plt.close()
         print(f"Saved t-SNE plot to {out_path}")
+        
+        print("Displaying plot...")
+        plt.show()
+        plt.close()
 
 if __name__ == "__main__":
     main()
