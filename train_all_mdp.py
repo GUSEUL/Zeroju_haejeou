@@ -38,8 +38,11 @@ def policy_iteration(P, R, gamma=0.95, theta=1e-12):
         stable = True
         for s in range(n_states):
             old_a = policy[s]
-            policy[s] = np.argmax(np.round(R[s] + gamma * np.dot(P[s], V), decimals=9))
-            if old_a != policy[s]: stable = False
+            action_values = R[s] + gamma * np.dot(P[s], V)
+            best_a = np.argmax(action_values)
+            if action_values[best_a] > action_values[old_a] + 1e-11:
+                policy[s] = best_a
+                stable = False
         if stable: break
     return policy, V, time.time() - start_time
 
