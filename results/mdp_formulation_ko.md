@@ -1,0 +1,123 @@
+# MDP 태스크 오프로딩 수학적 수식 정의 (State, Action, Reward)
+
+이 문서는 모바일 분산 컴퓨팅(Mobile Distributed Computing, MDC) 환경에서 태스크 오프로딩 최적화를 위해 설계된 MDP 모델의 상태 공간(State Space), 행동 공간(Action Space), 그리고 보상 함수(Reward Function)의 상세 수학적 정의를 기술합니다.
+
+---
+
+## 1. 상태 공간 (State Space, $S$)
+
+시스템의 물리적 자원 상태와 채널 전송 품질 상태를 반영하며, 마르코프 성질(Markov Property)을 유지하도록 5개의 이산 변수의 결합으로 정의됩니다.
+
+$$S = (Task\_Type, Comm\_State, Local\_Queue, Neighbor\_1\_Queue, Neighbor\_2\_Queue)$$
+
+각 상태 구성 변수의 세부 이산 레벨은 다음과 같습니다.
+
+1. **태스크 종류 ($Task\_Type \in \{0, 1\}$)**:
+   - $Task = 0$: URLLC 태스크 (latency-sensitive, 지연 및 드롭에 매우 민감)
+   - $Task = 1$: eMBB 태스크 (latency-tolerant, 대용량 전송 위주, 지연 허용)
+
+2. **통신 및 채널 품질 ($Comm\_State \in \{0, 1, 2\}$)**:
+   - $Comm = 0$: 불량 (Poor) - 낮은 전송 속도 및 로컬 연산 연계 지연 발생
+   - $Comm = 1$: 보통 (Normal)
+   - $Comm = 2$: 좋음 (Good) - 높은 전송 속도 보장
+
+3. **로컬 대기열 크기 ($Local\_Queue \in \{0, 1, 2, 3, 4\}$)**:
+   - 단말 장치의 물리 버퍼 용량은 $5$입니다. 큐 크기가 $5$ 이상 적재되면 강제로 드롭(Overflow Drop)이 발생하며, 인덱스로는 $0 \sim 4$로 표현됩니다.
+
+4. **이웃 노드 1 대기열 크기 ($Neighbor\_1\_Queue \in \{0, 1, 2, \dots, 10\}$)**:
+   - 무선 협력 통신 대상인 이웃 에지 노드 1의 물리 큐 크기 (버퍼 한도 10).
+
+5. **이웃 노드 2 대기열 크기 ($Neighbor\_2\_Queue \in \{0, 1, 2, \dots, 10\}$)**:
+   - 무선 협력 통신 대상인 이웃 에지 노드 2의 물리 큐 크기 (버퍼 한도 10).
+
+$$\text{총 상태 공간 크기 } |S| = 2 \times 3 \times 5 \times 11 \times 11 = 3,630\text{개}$$
+
+---
+
+## 2. 행동 공간 (Action Space, $A$)
+
+에이전트는 각 단계(Time-step)에서 유입된 태스크에 대해 다음 4가지 행동 중 하나를 결정합니다.
+
+$$A = \{0, 1, 2, 3\}$$
+
+* **$a = 0$ (Local Processing)**: 태스크를 로컬 CPU 대기열($Q_{local}$)에 삽입하여 직접 실행합니다.
+* **$a = 1$ (Offload to Neighbor 1)**: 무선 링크를 통해 첫 번째 이웃 에지 노드 대기열($Q_{n1}$)로 오프로딩합니다.
+* **$a = 2$ (Offload to Neighbor 2)**: 무선 링크를 통해 두 번째 이웃 에지 노드 대기열($Q_{n2}$)로 오프로딩합니다.
+* **$a = 3$ (Intentional Drop)**: 버퍼 포화 상태를 막거나 지연 폭증을 줄이기 위해 태스크를 즉시 폐기(드롭)합니다.
+
+---
+
+## 3. 보상 함수 (Reward Function, $R$)
+
+보상 함수는 시스템의 지연 시간 및 에너지 소모 비용($Cost_{delay\_energy}$)과 대기열 적재로 인한 혼잡 패널티($Penalty_{queue}$), 태스크 유실에 따르는 드롭 패널티($Penalty_{drop}$)의 총합에 음수부호($-$)를 붙여 정의됩니다. 에이전트는 누적 보상의 기댓값을 극대화(비용 최소화)하도록 유도됩니다.
+
+$$R = -\left(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{drop} + Penalty_{neighbor}\right)$$
+
+### 3.1 지연 및 에너지 비용 ($Cost_{delay\_energy}$)
+
+$$Cost_{delay\_energy} = w_{task} \cdot w_{delay} \cdot NormDelay + (1 - w_{delay}) \cdot NormEnergy$$
+
+* **$w_{delay} = 0.6$**: 전체 비용 계산 중 지연 시간에 적용되는 가중치 비율
+* **$NormDelay = \min\left(1.0, \frac{TotalDelay}{MaxDelay}\right)$**: 최대 5.0초를 기준으로 지연 시간을 $0 \sim 1$ 사이로 정규화 ($MaxDelay = 5.0$)
+* **$NormEnergy = \min\left(1.0, \frac{EnergyConsumed}{MaxEnergy}\right)$**: 최대 1.0J을 기준으로 소모한 에너지를 $0 \sim 1$ 사이로 정규화 ($MaxEnergy = 1.0$)
+
+**태스크별 긴급성 가중치 ($w_{task}$)**
+* *Standard / Sparse / Cliff 설정*: URLLC ($Task=0$) 시 $2.0$, eMBB ($Task=1$) 시 $0.5$
+* *Improved 설정 (개선 설계)*: URLLC ($Task=0$) 시 **$2.5$** (초저지연성 강화), eMBB ($Task=1$) 시 $0.5$
+
+---
+
+### 3.2 물리적 지연 및 에너지 소비 산출식
+
+각 행동 $a$에 대해 소요되는 전송 지연($Delay_{trans}$), 컴퓨팅 연산 지연($Delay_{comp}$), 에너지($EnergyConsumed$)는 다음과 같습니다.
+
+#### 1) 로컬 처리 ($a = 0$)
+* 전송 지연: $Delay_{trans} = 0.0$
+* 연산 지연: $Delay_{comp} = \frac{Q_{local} + 1}{2 \cdot ServiceRate(Comm)}$
+  - $ServiceRate(Comm) \in \{1, 2, 3\}$ (채널 상태 $Comm \in \{0, 1, 2\}$에 비례하여 처리 속도 상승)
+* 에너지 소모: $EnergyConsumed = EnergyCost(Comm) \in \{0.8, 0.5, 0.3\}$
+
+#### 2) 이웃 노드 $i \in \{1, 2\}$ 오프로딩 ($a = 1, 2$)
+* 전송 지연: $Delay_{trans} = ChannelFactor(Comm) \cdot 1.0$
+  - $ChannelFactor(Comm) \in \{1.5, 1.0, 0.5\}$ (채널 품질 상태가 좋음(2)일 때 전송 지연이 가장 작음)
+* 연산 지연: $Delay_{comp} = \frac{Q_{ni} + 1}{4.0} + 0.05$ (이웃 에지 노드는 속도 $4.0$을 가진 고속 프로세서 장착)
+* 에너지 소모: $EnergyConsumed = EnergyCost(Comm) \cdot 0.6$ (오프로딩 시 무선 송출에 소모되는 전력은 로컬 연산 대비 $60\%$ 수준으로 절감)
+
+#### 3) 의도적 드롭 ($a = 3$)
+* 지연 시간 및 소모 에너지 모두 0으로 산출 ($Delay_{trans} = 0.0, Delay_{comp} = 0.0, EnergyConsumed = 0.0$)
+
+---
+
+### 3.3 대기열 혼잡 패널티 ($Penalty_{queue}$ & $Penalty_{neighbor}$)
+
+버퍼가 포화 상태에 가까워질수록 패널티를 비선형적(제곱 형태)으로 부과하여 학습 불안정성을 예방하고 시스템 붕괴 임계점(Buffer Overflow)을 에이전트가 회피하도록 합니다.
+
+#### 1) 로컬 대기열 패널티 ($Penalty_{queue}$)
+$$Penalty_{queue} = \beta_{local} \cdot \left(\frac{Q_{local}}{MaxLocalQueue}\right)^2 \quad (\text{단, } MaxLocalQueue = 5.0)$$
+* *Standard / Cliff 설정*: $\beta_{local} = 5.0$
+* *Sparse 설정*: $\beta_{local} = 0.0$ (큐 패널티 미적용)
+* *Improved 설정 (개선안)*: URLLC ($Task=0$) 시 $\beta_{local} = 8.0$ (대기 절대 불가), eMBB ($Task=1$) 시 $\beta_{local} = 3.0$ (버퍼 대기 수용)
+
+#### 2) 이웃 대기열 패널티 ($Penalty_{neighbor}$)
+에이전트가 오프로딩 $a \in \{1, 2\}$을 선택했을 때 적재 대상 이웃 노드 $i$의 버퍼 혼잡도를 반영합니다.
+$$Penalty_{neighbor} = \beta_{neighbor} \cdot \left(\frac{Q_{ni}}{10.0}\right)^2$$
+* *Standard / Cliff 설정*: $\beta_{neighbor} = 5.0$
+* *Sparse 설정*: $\beta_{neighbor} = 0.0$
+* *Improved 설정 (개선안)*: URLLC ($Task=0$) 시 $\beta_{neighbor} = 6.0$, eMBB ($Task=1$) 시 $\beta_{neighbor} = 3.0$
+
+---
+
+### 3.4 태스크 유실 패널티 ($Penalty_{drop}$)
+
+에이전트가 의도적 드롭($a=3$)을 수행했거나, 타임스텝 연산 이후 백그라운드 유입 Poisson 도착(Poisson Arrival)량으로 인해 로컬 큐 용량을 초과해 자동 드롭($num\_bg\_drops$)된 경우에 가해집니다.
+
+* **의도적 드롭 ($a=3$) 패널티**: $\gamma$
+* **백그라운드 버퍼 오버플로우 패널티**: $\gamma \cdot num\_bg\_drops$
+
+**보상 설정 방식별 패널티 상수 ($\gamma$)**
+1. **Standard 설정**: $\gamma = 5.0$ (낮은 패널티로 인하여 중부하 조건에서 쉽게 태스크를 버림)
+2. **Sparse 설정**: $\gamma = 100.0$ (비용을 배제하고 드롭 여부에만 집중)
+3. **Cliff 설정**: $\gamma = 1000.0$ (드롭을 매우 치명적인 에러로 간주)
+4. **Improved 설정 (개선안)**: **태스크 종류별 차등 가점**
+   - URLLC ($Task=0$) 시: $\gamma_{task} = 30.0$ (지연 민감 태스크의 전송 유실 원천 방지)
+   - eMBB ($Task=1$) 시: $\gamma_{task} = 10.0$ (혼잡 상황 시 효율적인 드롭 타협 가능)
