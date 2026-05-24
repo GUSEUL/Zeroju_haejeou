@@ -52,8 +52,8 @@ def simulate_step(q_table, state, arrival, task_type, comm_next, local_service_r
     n1_served_rate = 1 if random.random() < 0.2 else 0
     n2_served_rate = 1 if random.random() < 0.2 else 0
     
-    q_n1_served = max(0, q_n1_act - n1_served_rate)
-    q_n2_served = max(0, q_n2_act - n2_served_rate)
+    q_n1_served = min(10, max(0, q_n1_act - n1_served_rate))
+    q_n2_served = min(10, max(0, q_n2_act - n2_served_rate))
     
     # Background arrivals and overflow
     bg_drops = max(0, q_l_served + arrival - 4)
@@ -90,7 +90,7 @@ def generate_animation(lambda_val, ep_std, ep_imp, out_filename):
     q_std = np.loadtxt(q_std_path, delimiter=",")
     q_imp = np.loadtxt(q_imp_path, delimiter=",")
 
-    steps = 40
+    steps = 200
     
     # Pre-generate environmental transitions for consistency
     np.random.seed(42)

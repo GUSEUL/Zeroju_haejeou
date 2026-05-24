@@ -70,8 +70,8 @@ def simulate_step(policy_or_q, state, arrival, task_type, comm_next, n1_served_r
     q_l_served = max(0, q_l_act - local_service_rate)
     
     # stochastic processing (passed as arguments to align between different policies)
-    q_n1_served = max(0, q_n1_act - n1_served_rate)
-    q_n2_served = max(0, q_n2_act - n2_served_rate)
+    q_n1_served = min(10, max(0, q_n1_act - n1_served_rate))
+    q_n2_served = min(10, max(0, q_n2_act - n2_served_rate))
     
     # Background arrivals and overflow
     bg_drops = max(0, q_l_served + arrival - 4)
@@ -118,7 +118,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     # Solve for DP Optimal Policy
     policy_dp = solve_dp_optimal(P, R)
 
-    steps = 40
+    steps = 200
     
     # Pre-generate environmental transitions for strict consistency
     np.random.seed(42)
