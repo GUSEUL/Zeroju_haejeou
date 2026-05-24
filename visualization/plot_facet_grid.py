@@ -27,7 +27,10 @@ def solve_dp(model_path):
 def load_rl_policy(q_path):
     if not os.path.exists(q_path):
         return None
-    q = np.load(q_path)
+    if q_path.endswith('.npy'):
+        q = np.load(q_path)
+    else:
+        q = np.loadtxt(q_path, delimiter=",")
     return np.argmax(q, axis=1)
 
 def get_state_index(task, comm, local_q, qn1, qn2):
@@ -48,45 +51,42 @@ def generate_facet_grid(policy, name, lambda_val, reward_type, output_dir):
         for comm in range(3):
             ax = axes[task, comm]
             
-            # Grid of local_q (0..4) vs neighbor_q (0..10, assuming symmetric qn1=qn2)
+            # Extract 2D slice for local_q vs qn1 (fixing qn2=0 for visualization)
             grid = np.zeros((5, 11))
-            for l_q in range(5):
-                for n_q in range(11):
-                    s_idx = get_state_index(task, comm, l_q, n_q, n_q)
-                    grid[l_q, n_q] = policy[s_idx]
+            for local_q in range(5):
+                for qn1 in range(11):
+                    s_idx = get_state_index(task, comm, local_q, qn1, 0)
+                    grid[local_q, qn1] = policy[s_idx]
             
-            # Plot heatmap using custom categorical colors (origin='lower' to keep local_q=0 at bottom)
-            im = ax.imshow(grid, cmap=cmap, aspect='auto', origin='lower', vmin=0, vmax=3)
+            # Plot slice
+            im = ax.imshow(grid, cmap=cmap, origin='lower', aspect='auto', vmin=0, vmax=3)
             
-            # Subplot titles and labels
+            # Titles and labels
             if task == 0:
-                ax.set_title(f"Channel: {comm_names[comm]}", fontsize=12, fontweight='bold')
+                ax.set_title(f"Channel: {comm_names[comm]}")
             if comm == 0:
-                ax.set_ylabel(f"{task_names[task]}\nLocal Queue Length", fontsize=11)
+                ax.set_ylabel(f"{task_names[task]}\nLocal Queue Size")
             if task == 1:
-                ax.set_xlabel("Neighbor Queue (qn1 = qn2)", fontsize=11)
+                ax.set_xlabel("Neighbor 1 Queue Size")
                 
-            ax.set_yticks(range(5))
-            ax.set_xticks(range(0, 11, 2))
-            ax.grid(True, which='both', color='white', linestyle='-', linewidth=0.5, alpha=0.3)
-            
-    # Add a global legend
-    patches = [
-        mpatches.Patch(color='#3b82f6', label='Action 0: Local Processing'),
-        mpatches.Patch(color='#10b981', label='Action 1: Offload to N1'),
-        mpatches.Patch(color='#84cc16', label='Action 2: Offload to N2'),
-        mpatches.Patch(color='#ef4444', label='Action 3: Drop Task')
-    ]
-    fig.legend(handles=patches, loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0.02), fontsize=12)
+    # Add title and legend
+    fig.suptitle(f"Optimal Policy Map Slice (Neighbor 2 Queue = 0) - {name}\nLambda={lambda_val}, Reward={reward_type}", fontsize=16)
     
-    plt.suptitle(f"Multi-panel Policy Facet Grid: {name} (Lambda={lambda_val}, Reward={reward_type})\nSymmetric Neighbor Queues Slice", 
-                 fontsize=16, fontweight='bold', y=0.96)
-    plt.tight_layout(rect=[0, 0.08, 1, 0.94])
+    # Create legend patches
+    patch_loc = mpatches.Patch(color='#3b82f6', label='Local')
+    patch_n1 = mpatches.Patch(color='#10b981', label='Neighbor 1')
+    patch_n2 = mpatches.Patch(color='#84cc16', label='Neighbor 2')
+    patch_drop = mpatches.Patch(color='#ef4444', label='Drop')
     
-    out_path = os.path.join(output_dir, f"policy_facet_grid_{name.lower().replace(' ', '_')}.png")
-    plt.savefig(out_path, dpi=150)
+    fig.legend(handles=[patch_loc, patch_n1, patch_n2, patch_drop], loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0.02))
+    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    
+    # Save plot
+    file_name = f"policy_grid_{name.lower().replace(' ', '_')}.png"
+    save_path = os.path.join(output_dir, file_name)
+    plt.savefig(save_path)
     plt.close()
-    print(f"Saved facet grid to {out_path}")
+    print(f"Saved facet grid to {save_path}")
 
 def main():
     import argparse
@@ -108,13 +108,13 @@ def main():
         generate_facet_grid(dp_policy, "DP Optimal", lambda_val, reward_type, res_dir)
         
     # 2. Q-Learning
-    ql_path = f"results/L_{lambda_val}_E_{args.episodes}/{reward_type}/q_table_ql.npy"
+    ql_path = f"results/L_{lambda_val}_E_{args.episodes}/{reward_type}/q_table_ql.csv"
     ql_policy = load_rl_policy(ql_path)
     if ql_policy is not None:
         generate_facet_grid(ql_policy, "Q-Learning", lambda_val, reward_type, res_dir)
         
     # 3. Expected SARSA
-    sarsa_path = f"results/L_{lambda_val}_E_{args.episodes}/{reward_type}/q_table_sarsa.npy"
+    sarsa_path = f"results/L_{lambda_val}_E_{args.episodes}/{reward_type}/q_table_sarsa.csv"
     sarsa_policy = load_rl_policy(sarsa_path)
     if sarsa_policy is not None:
         generate_facet_grid(sarsa_policy, "Expected SARSA", lambda_val, reward_type, res_dir)

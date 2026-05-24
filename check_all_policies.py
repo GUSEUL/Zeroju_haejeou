@@ -23,8 +23,12 @@ def solve_dp(model_path):
 def analyze_q_table(q_path):
     if not os.path.exists(q_path):
         return None, None
-    q = np.load(q_path)
-    visited_mask = np.any(q != 0.0, axis=1)
+    if q_path.endswith('.npy'):
+        q = np.load(q_path)
+    else:
+        q = np.loadtxt(q_path, delimiter=",")
+    # Visited mask: any Q-value not equal to initialization value -150.0
+    visited_mask = np.any(q != -150.0, axis=1)
     num_visited = np.sum(visited_mask)
     pct_visited = num_visited / len(q) * 100.0
     
@@ -67,13 +71,13 @@ def main():
                 print(f"{scenario_name:<25} | {'DP Optimal':<15} | {'100.0%':<10} | {print_distribution(dp_policy, 'DP')}")
             
             # 2. Q-Learning
-            ql_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_ql.npy"
+            ql_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_ql.csv"
             ql_visited, ql_policy = analyze_q_table(ql_path)
             if ql_policy is not None:
                 print(f"{'':<25} | {'Q-Learning':<15} | {f'{ql_visited:.2f}%':<10} | {print_distribution(ql_policy, 'QL')}")
                 
             # 3. Expected SARSA
-            sarsa_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_sarsa.npy"
+            sarsa_path = f"results/L_{l}_E_{args.episodes}/{r}/q_table_sarsa.csv"
             sarsa_visited, sarsa_policy = analyze_q_table(sarsa_path)
             if sarsa_policy is not None:
                 print(f"{'':<25} | {'Expected SARSA':<15} | {f'{sarsa_visited:.2f}%':<10} | {print_distribution(sarsa_policy, 'SARSA')}")

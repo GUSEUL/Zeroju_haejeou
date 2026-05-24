@@ -88,7 +88,7 @@ if __name__ == "__main__":
         plot_policy_heatmap(pol, env, "DP Optimal", args.lambda_val, args.reward_type, res_dir)
         
     for algo in [("sarsa", "SARSA"), ("ql", "Q-Learning")]:
-        q_path = os.path.join(res_dir, f"q_table_{algo[0]}.npy")
+        q_path = os.path.join(res_dir, f"q_table_{algo[0]}.csv")
         if os.path.exists(q_path):
-            q_table = np.load(q_path)
+            q_table = np.loadtxt(q_path, delimiter=",")
             plot_policy_heatmap(q_table, env, algo[1], args.lambda_val, args.reward_type, res_dir)

@@ -47,10 +47,10 @@ def policy_iteration(P, R, gamma=0.95, theta=1e-12):
     return policy, V, time.time() - start_time
 
 def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
-    q_path = os.path.join(output_dir, "q_table_ql.npy")
+    q_path = os.path.join(output_dir, "q_table_ql.csv")
     if os.path.exists(q_path):
         print(f" Loading checkpoint: {q_path}")
-        return np.load(q_path), [], 0.0
+        return np.loadtxt(q_path, delimiter=","), [], 0.0
     
     q = np.full((env.n_states, env.action_space.n), -150.0)
     alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.6))
@@ -70,14 +70,14 @@ def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
         eps = max(eps_min, eps * decay)
         logs.append({"episode": ep, "reward": ep_r})
     
-    np.save(q_path, q)
+    np.savetxt(q_path, q, delimiter=",")
     return q, logs, time.time() - start_time
 
 def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
-    q_path = os.path.join(output_dir, "q_table_sarsa.npy")
+    q_path = os.path.join(output_dir, "q_table_sarsa.csv")
     if os.path.exists(q_path):
         print(f" Loading checkpoint: {q_path}")
-        return np.load(q_path), [], 0.0
+        return np.loadtxt(q_path, delimiter=","), [], 0.0
 
     q = np.full((env.n_states, env.action_space.n), -150.0)
     alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.6))
@@ -103,7 +103,7 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
         eps = max(eps_min, eps * decay)
         logs.append({"episode": ep, "reward": ep_r})
         
-    np.save(q_path, q)
+    np.savetxt(q_path, q, delimiter=",")
     return q, logs, time.time() - start_time
 
 def evaluate(env, pol, is_q=False, gamma=0.95):

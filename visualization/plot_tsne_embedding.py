@@ -29,7 +29,10 @@ def solve_dp(model_path):
 def load_rl_policy(q_path):
     if not os.path.exists(q_path):
         return None
-    q = np.load(q_path)
+    if q_path.endswith('.npy'):
+        q = np.load(q_path)
+    else:
+        q = np.loadtxt(q_path, delimiter=",")
     return np.argmax(q, axis=1)
 
 def main():
@@ -48,16 +51,18 @@ def main():
     # 1. Reconstruct all 3,630 states
     states = []
     for s in range(3630):
-        task = s // 1815
-        rem = s % 1815
-        comm = rem // 605
-        rem = rem % 605
-        local_q = rem // 121
-        rem = rem % 121
-        qn1 = rem // 11
-        qn2 = rem % 11
-        states.append([task, comm, local_q, qn1, qn2])
-    states = np.array(states, dtype=float)
+        temp = s
+        qn2 = temp % 11
+        temp //= 11
+        qn1 = temp % 11
+        temp //= 11
+        ql = temp % 5
+        temp //= 5
+        comm = temp % 3
+        task = temp // 3
+        states.append([task, comm, ql, qn1, qn2])
+        
+    states = np.array(states)
     
     # 2. Scale features for t-SNE
     scaler = StandardScaler()
@@ -87,14 +92,14 @@ def main():
         print(f"Warning: DP model file not found: {model_path}")
         
     # Load Q-Learning
-    ql_path = f"{res_dir}/q_table_ql.npy"
+    ql_path = f"{res_dir}/q_table_ql.csv"
     ql_pol = load_rl_policy(ql_path)
     if ql_pol is not None:
         policies["Q-Learning"] = ql_pol
         print("Successfully loaded Q-Learning policy.")
         
     # Load Expected SARSA
-    sarsa_path = f"{res_dir}/q_table_sarsa.npy"
+    sarsa_path = f"{res_dir}/q_table_sarsa.csv"
     sarsa_pol = load_rl_policy(sarsa_path)
     if sarsa_pol is not None:
         policies["Expected SARSA"] = sarsa_pol

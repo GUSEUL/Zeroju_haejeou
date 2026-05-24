@@ -25,7 +25,10 @@ def solve_dp(model_path):
 def load_rl_policy(q_path):
     if not os.path.exists(q_path):
         return None
-    q = np.load(q_path)
+    if q_path.endswith('.npy'):
+        q = np.load(q_path)
+    else:
+        q = np.loadtxt(q_path, delimiter=",")
     policy = np.argmax(q, axis=1)
     return policy.tolist()
 
@@ -62,7 +65,7 @@ def main():
             ep = 20000 if r == "improved" else args.episodes
             
             # 2. Q-Learning
-            ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.npy"
+            ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.csv"
             ql_policy = load_rl_policy(ql_path)
             if ql_policy is not None:
                 data["policies"][f"{key_prefix}_ql"] = ql_policy
@@ -71,7 +74,7 @@ def main():
                 print(f"Q-Learning Q-table not found: {ql_path}")
                 
             # 3. Expected SARSA
-            sarsa_path = f"results/L_{l}_E_{ep}/{r}/q_table_sarsa.npy"
+            sarsa_path = f"results/L_{l}_E_{ep}/{r}/q_table_sarsa.csv"
             sarsa_policy = load_rl_policy(sarsa_path)
             if sarsa_policy is not None:
                 data["policies"][f"{key_prefix}_sarsa"] = sarsa_policy
