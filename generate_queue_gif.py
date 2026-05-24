@@ -48,9 +48,9 @@ def simulate_step(q_table, state, arrival, task_type, comm_next, local_service_r
     # Process queue tasks
     q_l_served = max(0, q_l_act - local_service_rate)
     
-    # Neighbors process tasks stochastically
-    n1_served_rate = 1 if random.random() < 0.5 else 2
-    n2_served_rate = 1 if random.random() < 0.5 else 2
+    # Neighbors process tasks stochastically (Option A: 20% chance of 1 task, 80% chance of 0 tasks)
+    n1_served_rate = 1 if random.random() < 0.2 else 0
+    n2_served_rate = 1 if random.random() < 0.2 else 0
     
     q_n1_served = max(0, q_n1_act - n1_served_rate)
     q_n2_served = max(0, q_n2_act - n2_served_rate)

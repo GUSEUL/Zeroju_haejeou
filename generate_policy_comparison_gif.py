@@ -133,9 +133,9 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         change = random.choice([-1, 0, 1])
         comm_states.append(int(np.clip(comm_states[-1] + change, 0, 2)))
 
-    # Neighbor processing rates
-    n1_served_rates = [1 if random.random() < 0.5 else 2 for _ in range(steps)]
-    n2_served_rates = [1 if random.random() < 0.5 else 2 for _ in range(steps)]
+    # Neighbor processing rates (Option A: 20% chance of 1 task, 80% chance of 0 tasks)
+    n1_served_rates = [1 if random.random() < 0.2 else 0 for _ in range(steps)]
+    n2_served_rates = [1 if random.random() < 0.2 else 0 for _ in range(steps)]
 
     # Run simulations for all 3 policies
     # Start all states at empty queues: (task_type, comm_state, local_q, n1_q, n2_q)
