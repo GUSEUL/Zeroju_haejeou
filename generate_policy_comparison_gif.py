@@ -192,8 +192,13 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         comm_names = ["Poor", "Normal", "Good"]
         action_names = ["Local Process", "Offload N1", "Offload N2", "Drop"]
         
+        # Compute cumulative drops up to frame i
+        cum_drops_dp = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_dp[:i+1])
+        cum_drops_sarsa = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_sarsa[:i+1])
+        cum_drops_ql = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_ql[:i+1])
+
         # Helper to draw queue tables for a single subplot
-        def draw_queues(ax, info, title):
+        def draw_queues(ax, info, title, cum_drops):
             # Title
             ax.text(0, 4.4, title, color='#f8fafc', fontsize=14, fontweight='bold')
             
@@ -210,7 +215,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
             empty_color = '#475569'         # Slate gray for empty
             
             # Local Queue (Capacity 5)
-            ax.text(0, 2.6, "Local Queue (Capacity: 5)", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 2.6, f"Local Queue (Capacity: 5) | Drops: {cum_drops}", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(5):
                 is_filled = idx < info['q_l_act']
                 color = local_filled_color if is_filled else empty_color
@@ -220,7 +225,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                     ax.text(idx * 1.2 + 0.35, 2.12, "T", color='#ffffff', fontsize=9, fontweight='bold')
                     
             # Neighbor 1 Queue (Capacity 10)
-            ax.text(0, 1.4, "Neighbor 1 Queue (Capacity: 10)", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 1.4, "Neighbor 1 Queue (Capacity: 10) | Drops: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(10):
                 is_filled = idx < info['q_n1_act']
                 color = n1_filled_color if is_filled else empty_color
@@ -230,7 +235,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                     ax.text(idx * 1.0 + 0.25, 0.92, "T", color='#ffffff', fontsize=8, fontweight='semibold')
                     
             # Neighbor 2 Queue (Capacity 10)
-            ax.text(0, 0.2, "Neighbor 2 Queue (Capacity: 10)", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 0.2, "Neighbor 2 Queue (Capacity: 10) | Drops: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(10):
                 is_filled = idx < info['q_n2_act']
                 color = n2_filled_color if is_filled else empty_color
@@ -257,9 +262,9 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                     ax.add_patch(rect_border)
                     
         # Draw all three subplots
-        draw_queues(ax1, info_dp, "DP Optimal Policy")
-        draw_queues(ax2, info_sarsa, "Expected SARSA Policy")
-        draw_queues(ax3, info_ql, "Q-Learning Policy")
+        draw_queues(ax1, info_dp, "DP Optimal Policy", cum_drops_dp)
+        draw_queues(ax2, info_sarsa, "Expected SARSA Policy", cum_drops_sarsa)
+        draw_queues(ax3, info_ql, "Q-Learning Policy", cum_drops_ql)
         
         # Global title showing progress
         reward_title = "QoS-Aware Improved Reward" if reward_type == "improved" else "Standard Reward"
