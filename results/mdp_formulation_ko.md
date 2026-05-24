@@ -142,7 +142,89 @@ $$Penalty_{neighbor} = \beta_{neighbor} \cdot \left(\frac{Q_{ni}}{10.0}\right)^2
    - URLLC ($Task=0$) 시: $\gamma_{task} = 30.0$ (지연 민감 태스크의 전송 유실 원천 방지)
    - eMBB ($Task=1$) 시: $\gamma_{task} = 10.0$ (혼잡 상황 시 효율적인 드롭 타협 가능)
 
-### 3.5 푸아송 분포(Poisson Distribution) 활용 및 에피소드(Episode) 생성 방식
+### 3.5 상태 전이 확률 (State Transition Probability, $P(S_{next} \mid S, a)$) 설계 및 구현
+
+시스템의 다음 상태 $S_{next}$로의 전이는 이전 상태 $S$와 에이전트의 행동 $a$에 의해 결정됩니다. 본 MDP 모델은 다음 상태를 구성하는 개별 상태 변수들이 조건부 독립(Conditional Independence)이라는 가정 하에 설계되었습니다.
+
+#### 1) 결합 전이 확률 (Joint Transition Probability)
+개별 상태 변수들의 조건부 독립성에 따라, 결합 상태 전이 확률은 각 변수별 전이 확률의 곱으로 다음과 같이 정의됩니다.
+
+$$P(S_{next} \mid S, a) = P(Task\_Type_{next}) \cdot P(Comm\_State_{next} \mid Comm\_State) \cdot P(Local\_Queue_{next} \mid q_{local\_act}, Comm\_State) \cdot P(N1\_Queue_{next} \mid q_{n1\_act}) \cdot P(N2\_Queue_{next} \mid q_{n2\_act})$$
+
+여기서 각 변수의 다음 상태 전이는 현재 시점의 상태 정보와 선택된 행동 $a$에 의해서만 결정됩니다.
+
+#### 2) 상태 인덱스 맵핑 (State Index Encoding)
+총 $3,630$개의 이산 상태 공간을 1차원 평탄화 인덱스(Flat Index) $s\_idx$로 변환하기 위해 다음과 같은 규칙을 사용합니다.
+
+$$s\_idx = Task\_Type \times 1815 + Comm\_State \times 605 + Local\_Queue \times 121 + Neighbor\_1\_Queue \times 11 + Neighbor\_2\_Queue$$
+
+이 수식은 각 상태 변수의 크기($|Task\_Type|=2, |Comm\_State|=3, |Local\_Queue|=5, |Neighbor\_1\_Queue|=11, |Neighbor\_2\_Queue|=11$)에 따른 자릿수 가중치를 기반으로 고유한 인덱스를 매핑합니다.
+
+#### 3) 각 상태 변수별 세부 전이 규칙 (Individual Variable Transition Rules)
+
+##### (1) 태스크 종류 (Task\_Type)
+신규 태스크의 종류는 현재 상태 및 에이전트의 행동과 무관하게 매 타임스텝마다 독립적으로 생성됩니다. 두 종류의 태스크(URLLC 및 eMBB)가 발생할 확률은 각각 $0.5$로 동일합니다.
+$$P(Task\_Type_{next} = nt) = 0.5 \quad \text{for } nt \in \{0, 1\}$$
+
+##### (2) 통신 상태 (Comm\_State)
+통신 상태는 1차원 무작위 워크(1D Random Walk) 모델을 따릅니다. 이전 상태 대비 채널의 상태 변화 $\Delta c \in \{-1, 0, 1\}$에 대한 전이 확률은 각각 $[0.1, 0.8, 0.1]$이며, 경계 조건 $\{0, 1, 2\}$를 벗어나지 않도록 클리핑(Clipping)을 수행합니다.
+각 상태별 구체적인 전이 확률 식은 다음과 같습니다.
+
+* **$Comm = 0$ (불량)인 경우**:
+  $$P(Comm_{next} = 0 \mid Comm = 0) = 0.9$$
+  $$P(Comm_{next} = 1 \mid Comm = 0) = 0.1$$
+  $$P(Comm_{next} = 2 \mid Comm = 0) = 0.0$$
+
+* **$Comm = 1$ (보통)인 경우**:
+  $$P(Comm_{next} = 0 \mid Comm = 1) = 0.1$$
+  $$P(Comm_{next} = 1 \mid Comm = 1) = 0.8$$
+  $$P(Comm_{next} = 2 \mid Comm = 1) = 0.1$$
+
+* **$Comm = 2$ (좋음)인 경우**:
+  $$P(Comm_{next} = 0 \mid Comm = 2) = 0.0$$
+  $$P(Comm_{next} = 1 \mid Comm = 2) = 0.1$$
+  $$P(Comm_{next} = 2 \mid Comm = 2) = 0.9$$
+
+##### (3) 로컬 대기열 (Local\_Queue)
+행동 $a$가 선택되면 우선 로컬 대기열에 태스크가 추가되어 행동 후 대기열 크기 $q_{local\_act}$가 결정됩니다.
+* $a = 0$ (로컬 처리)인 경우: $q_{local\_act} = \min(4, q_{local} + 1)$ (단, $q_{local} + 1 \ge 5$ 이면 오버플로우 드롭 발생 및 드롭 플래그 활성화)
+* $a \neq 0$인 경우: $q_{local\_act} = q_{local}$
+
+이후 로컬 서비스 처리율 $S_{local} = 2$만큼 태스크가 소모된 후($q_{served}$), 외부로부터 신규 태스크 유입량 $arr \sim \text{Poisson}(\lambda)$이 더해져 다음 상태의 대기열 크기 $q_{local, next}$가 결정되며 물리 한도인 $4$로 클리핑됩니다.
+$$q_{served} = \max(0, q_{local\_act} - 2)$$
+$$q_{local, next} = \min(4, q_{served} + arr)$$
+
+푸아송 분포의 도착 확률 질량 함수를 $P(arr = k) = \frac{\lambda^k e^{-\lambda}}{k!}$라 할 때, 로컬 대기열의 구체적인 상태 전이 확률 식은 다음과 같습니다.
+* $q_{local, next} < 4$ 인 경우 ($q_{local, next} \ge q_{served}$):
+  $$P(q_{local, next} \mid q_{local\_act}, Comm\_State) = \begin{cases} \frac{\lambda^{(q_{local, next} - q_{served})} e^{-\lambda}}{(q_{local, next} - q_{served})!} & \text{if } q_{local, next} \ge q_{served} \\ 0 & \text{otherwise} \end{cases}$$
+* $q_{local, next} = 4$ 인 경우 (버퍼 포화):
+  $$P(q_{local, next} = 4 \mid q_{local\_act}, Comm\_State) = \sum_{k = 4 - q_{served}}^{\infty} \frac{\lambda^k e^{-\lambda}}{k!} = 1 - \sum_{k=0}^{3 - q_{served}} \frac{\lambda^k e^{-\lambda}}{k!}$$
+
+##### (4) 이웃 노드 대기열 (Neighbor\_Queues)
+각 이웃 노드 $i \in \{1, 2\}$의 대기열은 행동 $a$에 따라 행동 후 대기열 크기 $q_{ni\_act}$로 업데이트됩니다.
+* $a = i$ (이웃 노드 오프로딩)인 경우: $q_{ni\_act} = q_{ni} + 1$ (최대 $11$)
+* $a \neq i$인 경우: $q_{ni\_act} = q_{ni}$
+
+그 후 이웃 노드 자체의 확률적 처리 속도 $S_{ni} \in \{1, 2\}$ 만큼 큐 크기가 감소하며, 각각 $0.5$의 확률을 가집니다.
+$$P(S_{ni} = 1) = 0.5, \quad P(S_{ni} = 2) = 0.5$$
+
+감소 후의 대기열 크기는 $[0, 10]$ 범위로 클리핑됩니다.
+$$q_{ni, next} = \min(10, \max(0, q_{ni\_act} - S_{ni}))$$
+
+구체적인 전이 확률 규칙은 다음과 같이 적용됩니다.
+* $q_{ni\_act} \ge 2$ 인 경우:
+  $$P(q_{ni, next} = q_{ni\_act} - 1 \mid q_{ni\_act}) = 0.5$$
+  $$P(q_{ni, next} = q_{ni\_act} - 2 \mid q_{ni\_act}) = 0.5$$
+* $q_{ni\_act} = 1$ 인 경우:
+  $$P(q_{ni, next} = 0 \mid q_{ni\_act} = 1) = 1.0$$
+* $q_{ni\_act} = 0$ 인 경우:
+  $$P(q_{ni, next} = 0 \mid q_{ni\_act} = 0) = 1.0$$
+
+(예: `trans_n[q_curr, q_next] += 0.5`를 두 차례 적용하여, $S_{ni}$의 값에 따른 전이 확률을 합산합니다.)
+
+---
+
+### 3.6 푸아송 분포(Poisson Distribution) 활용 및 에피소드(Episode) 생성 방식
 
 네트워크 환경의 무작위 태스크 도착 현상을 모사하고, 강화학습 에이전트가 넓은 상태 공간을 효율적으로 탐색할 수 있도록 다음과 같이 수식적·알고리즘적 설계를 적용하였습니다.
 
