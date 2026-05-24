@@ -318,17 +318,21 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     return True
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--episodes", type=int, default=100000)
+    args = parser.parse_args()
     for lv in [0.5, 1.0, 1.5]:
         generate_comparison_animation(
             lambda_val=lv, 
-            episodes=20000, 
+            episodes=args.episodes, 
             reward_type="standard", 
             out_filename=f"policy_comparison_L{lv}_standard.gif"
         )
         
         generate_comparison_animation(
             lambda_val=lv, 
-            episodes=20000, 
+            episodes=args.episodes, 
             reward_type="cliff", 
             out_filename=f"policy_comparison_L{lv}_cliff.gif"
         )

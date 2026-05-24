@@ -35,7 +35,7 @@ def load_rl_policy(q_path):
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--episodes", type=int, default=30000)
+    parser.add_argument("--episodes", type=int, default=100000)
     args = parser.parse_args()
     
     lambdas = [0.5, 1.0, 1.5]
@@ -61,8 +61,8 @@ def main():
             else:
                 print(f"DP Model not found: {model_path}")
                 
-            # Episode count selection: 20000 episodes for both improved and cliff
-            ep = 20000
+            # Episode count selection
+            ep = args.episodes
             
             # 2. Q-Learning
             ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.csv"

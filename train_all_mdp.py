@@ -58,13 +58,15 @@ def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
     start_time = time.time()
     for ep in range(episodes):
         s, _ = env.reset(options={"random_start": True}); ep_r = 0
+        t = 0
         while True:
             si = env.get_state_index(s)
             a = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[si])
             ns, r, term, trunc, _ = env.step(a)
             ni = env.get_state_index(ns)
             q[si, a] += alpha * (r + gamma * np.max(q[ni]) - q[si, a])
-            ep_r += r; s = ns
+            ep_r += (gamma ** t) * r; s = ns
+            t += 1
             if term or trunc: break
         if (ep + 1) % 500 == 0: print(f" Episode {ep+1}/{episodes}...")
         eps = max(eps_min, eps * decay)
@@ -86,6 +88,7 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
     for ep in range(episodes):
         s, _ = env.reset(options={"random_start": True}); si = env.get_state_index(s)
         ep_r = 0
+        t = 0
         while True:
             # Epsilon-greedy action selection
             a = env.action_space.sample() if np.random.rand() < eps else np.argmax(q[si])
@@ -97,7 +100,8 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
             expected_v = (1.0 - eps) * q[ni, best_a] + (eps / 4.0) * np.sum(q[ni])
             
             q[si, a] += alpha * (r + gamma * expected_v - q[si, a])
-            ep_r += r; si = ni
+            ep_r += (gamma ** t) * r; si = ni
+            t += 1
             if term or trunc: break
         if (ep + 1) % 500 == 0: print(f" Episode {ep+1}/{episodes}...")
         eps = max(eps_min, eps * decay)

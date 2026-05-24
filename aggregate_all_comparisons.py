@@ -1,6 +1,12 @@
 import os
 import pandas as pd
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--episodes", type=int, default=100000)
+args = parser.parse_args()
+
 lambdas = [0.5, 1.0, 1.5]
 reward_types = ["standard", "cliff"]
 base_dir = "results"
@@ -11,7 +17,7 @@ for l in lambdas:
     print("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
     
     for r in reward_types:
-        ep = 20000
+        ep = args.episodes
         csv_path = os.path.join(base_dir, f"L_{l}_E_{ep}", r, "mdp_final_results.csv")
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path)

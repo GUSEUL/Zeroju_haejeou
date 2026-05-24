@@ -256,7 +256,11 @@ def generate_animation(lambda_val, ep_cliff, ep_std, out_filename):
     print(f" Finished saving {out_filename} to visualization, results, and artifacts.")
  
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--episodes", type=int, default=100000)
+    args = parser.parse_args()
     for lv in [0.5, 1.0, 1.5]:
-        generate_animation(lambda_val=lv, ep_cliff=20000, ep_std=20000, out_filename=f"queue_simulation_L{lv}.gif")
+        generate_animation(lambda_val=lv, ep_cliff=args.episodes, ep_std=args.episodes, out_filename=f"queue_simulation_L{lv}.gif")
     
     print("All GIFs generated successfully.")

@@ -117,6 +117,7 @@ def build_model_analytical(lambda_val=1.5, reward_type="standard"):
                     exp_bg_pending += p_a * (q_served + arr - 4)
 
             # Reward
+            total_delay = delay_trans + delay_comp
             w_task = 2.5 if task == 0 else 0.5
             
             norm_delay = np.clip(total_delay / max_delay, 0.0, 1.0)
