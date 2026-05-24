@@ -8,26 +8,26 @@
 
 시스템의 물리적 자원 상태와 채널 전송 품질 상태를 반영하며, 마르코프 성질(Markov Property)을 유지하도록 5개의 이산 변수의 결합으로 정의됩니다.
 
-$$S = (\text{Task\_Type}, \text{Comm\_State}, \text{Local\_Queue}, \text{Neighbor\_1\_Queue}, \text{Neighbor\_2\_Queue})$$
+$$S = (\text{TaskType}, \text{CommState}, \text{LocalQueue}, \text{Neighbor1Queue}, \text{Neighbor2Queue})$$
 
 각 상태 구성 변수의 세부 이산 레벨은 다음과 같습니다.
 
-1. **태스크 종류 ($\text{Task\_Type} \in \{0, 1\}$)**:
+1. **태스크 종류 ($\text{TaskType} \in \{0, 1\}$)**:
    - $\text{Task} = 0$: URLLC 태스크 (latency-sensitive, 지연 및 드롭에 매우 민감)
    - $\text{Task} = 1$: eMBB 태스크 (latency-tolerant, 대용량 전송 위주, 지연 허용)
 
-2. **통신 및 채널 품질 ($\text{Comm\_State} \in \{0, 1, 2\}$)**:
+2. **통신 및 채널 품질 ($\text{CommState} \in \{0, 1, 2\}$)**:
    - $\text{Comm} = 0$: 불량 (Poor) - 낮은 전송 속도로 인한 전송 지연 발생 (로컬 연산 속도는 독립적으로 고정됨)
    - $\text{Comm} = 1$: 보통 (Normal)
    - $\text{Comm} = 2$: 좋음 (Good) - 높은 전송 속도로 인한 빠른 전송 보장
 
-3. **로컬 대기열 크기 ($\text{Local\_Queue} \in \{0, 1, 2, 3, 4\}$)**:
+3. **로컬 대기열 크기 ($\text{LocalQueue} \in \{0, 1, 2, 3, 4\}$)**:
    - 단말 장치의 물리 버퍼 용량은 $5$입니다. 큐 크기가 $5$ 이상 적재되면 강제로 드롭(Overflow Drop)이 발생하며, 인덱스로는 $0 \sim 4$로 표현됩니다.
 
-4. **이웃 노드 1 대기열 크기 ($\text{Neighbor\_1\_Queue} \in \{0, 1, 2, \dots, 10\}$)**:
+4. **이웃 노드 1 대기열 크기 ($\text{Neighbor1Queue} \in \{0, 1, 2, \dots, 10\}$)**:
    - 무선 협력 통신 대상인 이웃 에지 노드 1의 물리 큐 크기 (버퍼 한도 10).
 
-5. **이웃 노드 2 대기열 크기 ($\text{Neighbor\_2\_Queue} \in \{0, 1, 2, \dots, 10\}$)**:
+5. **이웃 노드 2 대기열 크기 ($\text{Neighbor2Queue} \in \{0, 1, 2, \dots, 10\}$)**:
    - 무선 협력 통신 대상인 이웃 에지 노드 2의 물리 큐 크기 (버퍼 한도 10).
 
 $$\text{총 상태 공간 크기 } |S| = 2 \times 3 \times 5 \times 11 \times 11 = 3,630\text{개}$$
@@ -95,13 +95,13 @@ $$\text{Cost}_{\text{delay, energy}} = w_{\text{task}} \cdot w_{\text{delay}} \c
 * 전송 지연: $\text{Delay}_{\text{trans}} = 0.0$
 * 연산 지연: $\text{Delay}_{\text{comp}} = \frac{Q_{\text{local}} + 1}{2 \cdot \text{ServiceRate}} = \frac{Q_{\text{local}} + 1}{4.0}$
   - $\text{ServiceRate} = 2$: 채널 상태 $\text{Comm}$과 무관하게 독립적으로 고정된 단말기 고유 연산 성능 스펙 (이웃 에지 노드의 연산 속도 분모인 $8.0$에 비해 절반 수준의 처리 능력)
-* 에너지 소모: $\text{EnergyConsumed} = \text{Energy\text{Cost}}(\text{Comm}) \in \{0.8, 0.5, 0.3\}$
+* 에너지 소모: $\text{EnergyConsumed} = \text{EnergyCost}(\text{Comm}) \in \{0.8, 0.5, 0.3\}$
 
 #### 2) 이웃 노드 $i \in \{1, 2\}$ 오프로딩 ($a = 1, 2$)
 * 전송 지연: $\text{Delay}_{\text{trans}} = \text{ChannelFactor}(\text{Comm}) \cdot 1.0$
   - $\text{ChannelFactor}(\text{Comm}) \in \{1.5, 1.0, 0.5\}$ (채널 품질 상태가 좋음(2)일 때 전송 지연이 가장 작음)
 * 연산 지연: $\text{Delay}_{\text{comp}} = \frac{Q_{n_i} + 1}{8.0} + 0.05$ (이웃 에지 노드는 연산 속도 분모 $8.0$을 가진 고성능 프로세서 장착)
-* 에너지 소모: $\text{EnergyConsumed} = \text{Energy\text{Cost}}(\text{Comm}) \cdot 0.6$ (오프로딩 시 무선 송출에 소모되는 전력은 로컬 연산 대비 $60\%$ 수준으로 절감)
+* 에너지 소모: $\text{EnergyConsumed} = \text{EnergyCost}(\text{Comm}) \cdot 0.6$ (오프로딩 시 무선 송출에 소모되는 전력은 로컬 연산 대비 $60\%$ 수준으로 절감)
 
 #### 3) 의도적 드롭 ($a = 3$)
 * 지연 시간 및 소모 에너지 모두 0으로 산출 ($\text{Delay}_{\text{trans}} = 0.0, \text{Delay}_{\text{comp}} = 0.0, \text{EnergyConsumed} = 0.0$)
@@ -129,10 +129,10 @@ $$\text{Penalty}_{\text{neighbor}} = \beta_{\text{neighbor}} \cdot \left(\frac{Q
 
 ### 3.4 태스크 유실 패널티 ($\text{Penalty}_{\text{drop}}$)
 
-에이전트가 의도적 드롭($a=3$)을 수행했거나, 타임스텝 연산 이후 백그라운드 유입 Poisson 도착(Poisson Arrival)량으로 인해 로컬 큐 용량을 초과해 자동 드롭($\text{num}_{\text{bg\_drops}}$)된 경우에 가해집니다.
+에이전트가 의도적 드롭($a=3$)을 수행했거나, 타임스텝 연산 이후 백그라운드 유입 Poisson 도착(Poisson Arrival)량으로 인해 로컬 큐 용량을 초과해 자동 드롭($\text{num}_{\text{bg, drops}}$)된 경우에 가해집니다.
 
 * **의도적 드롭 ($a=3$) 패널티**: $\gamma$
-* **백그라운드 버퍼 오버플로우 패널티**: $\gamma \cdot \text{num}_{\text{bg\_drops}}$
+* **백그라운드 버퍼 오버플로우 패널티**: $\gamma \cdot \text{num}_{\text{bg, drops}}$
 
 **보상 설정 방식별 패널티 상수 ($\gamma$)**
 1. **Standard 설정**: $\gamma = 5.0$ (낮은 패널티로 인하여 중부하 조건에서 쉽게 태스크를 버림)
@@ -149,24 +149,24 @@ $$\text{Penalty}_{\text{neighbor}} = \beta_{\text{neighbor}} \cdot \left(\frac{Q
 #### 1) 결합 전이 확률 (Joint Transition Probability)
 개별 상태 변수들의 조건부 독립성에 따라, 결합 상태 전이 확률은 각 변수별 전이 확률의 곱으로 다음과 같이 정의됩니다.
 
-$$P(S_{\text{next}} \mid S, a) = P(\text{Task\_Type}_{\text{next}}) \cdot P(\text{Comm\_State}_{\text{next}} \mid \text{Comm\_State}) \cdot P(\text{Local\_Queue}_{\text{next}} \mid q_{\text{local, act}}, \text{Comm\_State}) \cdot P(\text{N1\_Queue}_{\text{next}} \mid q_{n_1, \text{act}}) \cdot P(\text{N2\_Queue}_{\text{next}} \mid q_{n_2, \text{act}})$$
+$$P(S_{\text{next}} \mid S, a) = P(\text{TaskType}_{\text{next}}) \cdot P(\text{CommState}_{\text{next}} \mid \text{CommState}) \cdot P(\text{LocalQueue}_{\text{next}} \mid q_{\text{local, act}}, \text{CommState}) \cdot P(\text{Neighbor1Queue}_{\text{next}} \mid q_{n_1, \text{act}}) \cdot P(\text{Neighbor2Queue}_{\text{next}} \mid q_{n_2, \text{act}})$$
 
 여기서 각 변수의 다음 상태 전이는 현재 시점의 상태 정보와 선택된 행동 $a$에 의해서만 결정됩니다.
 
 #### 2) 상태 인덱스 맵핑 (State Index Encoding)
-총 $3,630$개의 이산 상태 공간을 1차원 평탄화 인덱스(Flat Index) $\text{s\_idx}$로 변환하기 위해 다음과 같은 규칙을 사용합니다.
+총 $3,630$개의 이산 상태 공간을 1차원 평탄화 인덱스(Flat Index) $s_{\text{idx}}$로 변환하기 위해 다음과 같은 규칙을 사용합니다.
 
-$$\text{s\_idx} = \text{Task\_Type} \times 1815 + \text{Comm\_State} \times 605 + \text{Local\_Queue} \times 121 + \text{Neighbor\_1\_Queue} \times 11 + \text{Neighbor\_2\_Queue}$$
+$$s_{\text{idx}} = \text{TaskType} \times 1815 + \text{CommState} \times 605 + \text{LocalQueue} \times 121 + \text{Neighbor1Queue} \times 11 + \text{Neighbor2Queue}$$
 
-이 수식은 각 상태 변수의 크기($|\text{Task\_Type}|=2, |\text{Comm\_State}|=3, |\text{Local\_Queue}|=5, |\text{Neighbor\_1\_Queue}|=11, |\text{Neighbor\_2\_Queue}|=11$)에 따른 자릿수 가중치를 기반으로 고유한 인덱스를 매핑합니다.
+이 수식은 각 상태 변수의 크기($|\text{TaskType}|=2, |\text{CommState}|=3, |\text{LocalQueue}|=5, |\text{Neighbor1Queue}|=11, |\text{Neighbor2Queue}|=11$)에 따른 자릿수 가중치를 기반으로 고유한 인덱스를 매핑합니다.
 
 #### 3) 각 상태 변수별 세부 전이 규칙 (Individual Variable Transition Rules)
 
-##### (1) 태스크 종류 (Task\_Type)
+##### (1) 태스크 종류 (TaskType)
 신규 태스크의 종류는 현재 상태 및 에이전트의 행동과 무관하게 매 타임스텝마다 독립적으로 생성됩니다. 두 종류의 태스크(URLLC 및 eMBB)가 발생할 확률은 각각 $0.5$로 동일합니다.
-$$P(\text{Task\_Type}_{\text{next}} = \text{nt}) = 0.5 \quad \text{for } \text{nt} \in \{0, 1\}$$
+$$P(\text{TaskType}_{\text{next}} = nt) = 0.5 \quad \text{for } nt \in \{0, 1\}$$
 
-##### (2) 통신 상태 (Comm\_State)
+##### (2) 통신 상태 (CommState)
 통신 상태는 1차원 무작위 워크(1D Random Walk) 모델을 따릅니다. 이전 상태 대비 채널의 상태 변화 $\Delta c \in \{-1, 0, 1\}$에 대한 전이 확률은 각각 $[0.1, 0.8, 0.1]$이며, 경계 조건 $\{0, 1, 2\}$를 벗어나지 않도록 클리핑(Clipping)을 수행합니다.
 각 상태별 구체적인 전이 확률 식은 다음과 같습니다.
 
@@ -185,7 +185,7 @@ $$P(\text{Task\_Type}_{\text{next}} = \text{nt}) = 0.5 \quad \text{for } \text{n
   $$P(Comm_{\text{next}} = 1 \mid \text{Comm} = 2) = 0.1$$
   $$P(Comm_{\text{next}} = 2 \mid \text{Comm} = 2) = 0.9$$
 
-##### (3) 로컬 대기열 (Local\_Queue)
+##### (3) 로컬 대기열 (LocalQueue)
 행동 $a$가 선택되면 우선 로컬 대기열에 태스크가 추가되어 행동 후 대기열 크기 $q_{\text{local, act}}$가 결정됩니다.
 * $a = 0$ (로컬 처리)인 경우: $q_{\text{local, act}} = \min(4, q_{\text{local}} + 1)$ (단, $q_{\text{local}} + 1 \ge 5$ 이면 오버플로우 드롭 발생 및 드롭 플래그 활성화)
 * $a \neq 0$인 경우: $q_{\text{local, act}} = q_{\text{local}}$
@@ -196,11 +196,11 @@ $$q_{\text{local, next}} = \min(4, q_{\text{served}} + \text{arr})$$
 
 푸아송 분포의 도착 확률 질량 함수를 $P(\text{arr} = k) = \frac{\lambda^k e^{-\lambda}}{k!}$라 할 때, 로컬 대기열의 구체적인 상태 전이 확률 식은 다음과 같습니다.
 * $q_{\text{local, next}} < 4$ 인 경우 ($q_{\text{local, next}} \ge q_{\text{served}}$):
-  $$P(q_{\text{local, next}} \mid q_{\text{local, act}}, \text{Comm\_State}) = \begin{cases} \frac{\lambda^{(q_{\text{local, next}} - q_{\text{served}})} e^{-\lambda}}{(q_{\text{local, next}} - q_{\text{served}})!} & \text{if } q_{\text{local, next}} \ge q_{\text{served}} \\ 0 & \text{otherwise} \end{cases}$$
+  $$P(q_{\text{local, next}} \mid q_{\text{local, act}}, \text{CommState}) = \begin{cases} \frac{\lambda^{(q_{\text{local, next}} - q_{\text{served}})} e^{-\lambda}}{(q_{\text{local, next}} - q_{\text{served}})!} & \text{if } q_{\text{local, next}} \ge q_{\text{served}} \\ 0 & \text{otherwise} \end{cases}$$
 * $q_{\text{local, next}} = 4$ 인 경우 (버퍼 포화):
-  $$P(q_{\text{local, next}} = 4 \mid q_{\text{local, act}}, \text{Comm\_State}) = \sum_{k = 4 - q_{\text{served}}}^{\infty} \frac{\lambda^k e^{-\lambda}}{k!} = 1 - \sum_{k=0}^{3 - q_{\text{served}}} \frac{\lambda^k e^{-\lambda}}{k!}$$
+  $$P(q_{\text{local, next}} = 4 \mid q_{\text{local, act}}, \text{CommState}) = \sum_{k = 4 - q_{\text{served}}}^{\infty} \frac{\lambda^k e^{-\lambda}}{k!} = 1 - \sum_{k=0}^{3 - q_{\text{served}}} \frac{\lambda^k e^{-\lambda}}{k!}$$
 
-##### (4) 이웃 노드 대기열 (Neighbor\_Queues)
+##### (4) 이웃 노드 대기열 (NeighborQueues)
 각 이웃 노드 $i \in \{1, 2\}$의 대기열은 행동 $a$에 따라 행동 후 대기열 크기 $q_{n_i, \text{act}}$로 업데이트됩니다.
 * $a = i$ (이웃 노드 오프로딩)인 경우: $q_{n_i, \text{act}} = q_{n_i} + 1$ (최대 $11$)
 * $a \neq i$인 경우: $q_{n_i, \text{act}} = q_{n_i}$
@@ -235,8 +235,8 @@ $$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
 * **모델 해석(Model-based calculations - `build_mdp_model.py`)**:
   - 상태 전이 확률 행렬 $P$를 수학적으로 생성하기 위해 푸아송 PMF를 사용합니다. 로컬 처리 이후 남은 큐 크기($Q_{\text{served}}$)와 신규 유입량($\text{arr}$)의 합이 다음 단계의 로컬 큐 크기 $Q_{\text{next}}$로 전이될 확률을 다음과 같이 계산합니다.
     $$P(Q_{\text{next}} \mid Q_{\text{served}}, \lambda) = \sum_{\text{arr}} P(X = \text{arr}) \quad (\text{단, } Q_{\text{next}} = \min(4, Q_{\text{served}} + \text{arr}))$$
-  - 또한, 버퍼 한도(4)를 넘어서 발생하는 기대 백그라운드 오버플로우 드롭 수($\mathbb{E}[\text{num}_{\text{bg\_drops}}]$)의 수학적 기댓값을 구하는 데 활용됩니다.
-    $$\mathbb{E}[\text{num}_{\text{bg\_drops}}] = \sum_{\text{arr} \ge 5 - Q_{\text{served}}} P(X = \text{arr}) \cdot (Q_{\text{served}} + \text{arr} - 4)$$
+  - 또한, 버퍼 한도(4)를 넘어서 발생하는 기대 백그라운드 오버플로우 드롭 수($\mathbb{E}[\text{num}_{\text{bg, drops}}]$)의 수학적 기댓값을 구하는 데 활용됩니다.
+    $$\mathbb{E}[\text{num}_{\text{bg, drops}}] = \sum_{\text{arr} \ge 5 - Q_{\text{served}}} P(X = \text{arr}) \cdot (Q_{\text{served}} + \text{arr} - 4)$$
 * **시뮬레이션 환경 (Model-free Environment - `mdc_mdp_env.py`)**:
   - 실제 스텝마다 푸아송 분포로부터 도착 태스크 수를 난수 샘플링합니다. 연산 속도 향상을 위해 초기화 시점에 `np.random.poisson`을 사용하여 100,000개의 유입량 샘플을 버퍼로 사전 생성한 후 순환 참조하여 적용합니다.
     $$\text{arrival} = \text{Poisson}(\lambda)$$
