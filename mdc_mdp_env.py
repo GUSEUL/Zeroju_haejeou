@@ -8,7 +8,7 @@ import math
 class MDCMDPEnv(gym.Env):
     def __init__(self, arrival_lambda=None, reward_type="standard"):
         super(MDCMDPEnv, self).__init__()
-        # 0:Local, 1:N1, 2:N2, 3:Drop
+        # 0:Local, 1:N1, 2:N2, 3:Pending
         self.action_space = spaces.Discrete(4)
         # Task(2), Comm_state(3), LocalQ(5), N1_Q(11), N2_Q(11)
         self.observation_space = spaces.MultiDiscrete([2, 3, 5, 11, 11])
@@ -26,7 +26,7 @@ class MDCMDPEnv(gym.Env):
         self.w = 0.6 # Weight for delay
         self.beta = 5.0 # Queue penalty scaling
         self.beta_neighbor = 5.0 # Neighbor queue penalty scaling
-        self.gamma = 5.0 # Drop penalty (reduced to allow Drop to be optimal under high congestion)
+        self.gamma = 5.0 # Pending penalty (reduced to allow Pending to be optimal under high congestion)
         
         # Normalization factors
         self.max_delay = 5.0 
@@ -42,6 +42,7 @@ class MDCMDPEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.arrival_idx = 0
+        self.pending_buffer = 0 # Infinite pending buffer queue
         if options and options.get("random_start", False):
             self.local_q = random.randint(0, 4)
             self.neighbor_qs = [random.randint(0, 10), random.randint(0, 10)]
@@ -64,7 +65,7 @@ class MDCMDPEnv(gym.Env):
         
         delay_trans, delay_comp = 0.0, 0.0
         energy_consumed = 0.0
-        is_dropped = False
+        is_pending = False
 
         if action == 0: # Local
             s_rate = self.service_rates[comm]
@@ -78,19 +79,24 @@ class MDCMDPEnv(gym.Env):
             energy_consumed = self.energy_costs[comm] * 0.6
             delay_comp = (self.neighbor_qs[idx] + 1) / 8.0 + 0.05
             self.neighbor_qs[idx] += 1
-        elif action == 3: # Drop
-            is_dropped = True
+            if self.neighbor_qs[idx] >= 11:
+                is_pending = True
+                overflow_count = self.neighbor_qs[idx] - 10
+                self.pending_buffer += overflow_count
+                self.neighbor_qs[idx] = 10
+        elif action == 3: # Pending
+            is_pending = True
+            self.pending_buffer += 1
 
-        if self.local_q >= 5: # Overflow drop logic
-            is_dropped = True
+        if self.local_q >= 5: # Overflow pending logic
+            is_pending = True
+            overflow_count = self.local_q - 4
+            self.pending_buffer += overflow_count
             self.local_q = 4 # Clip to max index
 
         # --- Reward Calculation Logic ---
         total_delay = delay_trans + delay_comp
-        if self.reward_type == "improved":
-            w_task = 2.5 if task_type == 0 else 0.5
-        else:
-            w_task = 2.0 if task_type == 0 else 0.5
+        w_task = 2.5 if task_type == 0 else 0.5
         
         # Fast min/max clip
         norm_delay = total_delay / self.max_delay
@@ -104,44 +110,22 @@ class MDCMDPEnv(gym.Env):
         
         cost_de = w_task * self.w * norm_delay + (1.0 - self.w) * norm_energy
         
-        if self.reward_type == "sparse":
-            # Sparse: Only care about drops, very small step penalty, plus mild regularization
-            reward = -100.0 if is_dropped else (-0.1 - 0.01 * cost_de)
-            
-        elif self.reward_type == "cliff":
-            # Cliff: Huge penalty for drop, and noise near the cliff (local_q=4)
-            penalty_drop = 1000.0 if is_dropped else 0.0
-            penalty_neighbor = 0.0
-            if action == 1 or action == 2:
-                idx = action - 1
-                penalty_neighbor = self.beta_neighbor * ((self.neighbor_qs[idx] / 10.0) ** 2)
-            reward = -(cost_de + penalty_drop + penalty_neighbor)
-            
-            if self.local_q >= 4 and not is_dropped:
-                # Add high variance noise near the edge to scare SARSA
-                reward += random.normalvariate(0, 5.0)
-                
-        elif self.reward_type == "improved":
-            gamma_task = 30.0 if task_type == 0 else 10.0
-            beta_task = 8.0 if task_type == 0 else 3.0
-            beta_neighbor_task = 6.0 if task_type == 0 else 3.0
-            
-            penalty_queue = beta_task * ((self.local_q / self.max_local_q) ** 2)
-            penalty_drop = gamma_task if is_dropped else 0.0
-            penalty_neighbor = 0.0
-            if action == 1 or action == 2:
-                idx = action - 1
-                penalty_neighbor = beta_neighbor_task * ((self.neighbor_qs[idx] / 10.0) ** 2)
-            reward = - (cost_de + penalty_queue + penalty_drop + penalty_neighbor)
-            
+        beta_task = 8.0 if task_type == 0 else 3.0
+        beta_neighbor_task = 6.0 if task_type == 0 else 3.0
+        
+        if self.reward_type == "cliff":
+            gamma_task = 1000.0
         else: # "standard"
-            penalty_queue = self.beta * ((self.local_q / self.max_local_q) ** 2)
-            penalty_drop = self.gamma if is_dropped else 0.0
-            penalty_neighbor = 0.0
-            if action == 1 or action == 2:
-                idx = action - 1
-                penalty_neighbor = self.beta_neighbor * ((self.neighbor_qs[idx] / 10.0) ** 2)
-            reward = - (cost_de + penalty_queue + penalty_drop + penalty_neighbor)
+            gamma_task = 30.0 if task_type == 0 else 10.0
+            
+        penalty_queue = beta_task * ((self.local_q / self.max_local_q) ** 2)
+        penalty_pending = gamma_task if is_pending else 0.0
+        penalty_neighbor = 0.0
+        if action == 1 or action == 2:
+            idx = action - 1
+            penalty_neighbor = beta_neighbor_task * ((self.neighbor_qs[idx] / 10.0) ** 2)
+            
+        reward = -(cost_de + penalty_queue + penalty_pending + penalty_neighbor)
         # --------------------------
 
         # Transitions
@@ -163,25 +147,28 @@ class MDCMDPEnv(gym.Env):
         arrival = int(self.arrival_buffer[self.arrival_idx])
         self.arrival_idx = (self.arrival_idx + 1) % 100000
             
-        # Background arrivals and overflow drops
-        num_bg_drops = max(0, self.local_q + arrival - 4)
-        bg_dropped = num_bg_drops > 0
+        # Background arrivals and overflow pending
+        num_bg_pending = max(0, self.local_q + arrival - 4)
+        bg_pending = num_bg_pending > 0
         self.local_q = min(4, self.local_q + arrival)
+        self.pending_buffer += num_bg_pending
         
-        # Apply drop penalty for background overflow
-        if bg_dropped:
-            if self.reward_type == "sparse":
-                reward -= 100.0 * num_bg_drops
-            elif self.reward_type == "cliff":
-                reward -= 1000.0 * num_bg_drops
-            elif self.reward_type == "improved":
+        # Apply pending penalty for background overflow
+        if bg_pending:
+            if self.reward_type == "cliff":
+                reward -= 1000.0 * num_bg_pending
+            else: # "standard"
                 gamma_task = 30.0 if task_type == 0 else 10.0
-                reward -= gamma_task * num_bg_drops
-            else: # standard
-                reward -= self.gamma * num_bg_drops
+                reward -= gamma_task * num_bg_pending
                 
-        is_dropped_overall = is_dropped or bg_dropped
-        total_drops = (1 if is_dropped else 0) + num_bg_drops
+        # Replenish local queue from the infinite pending buffer if space becomes available
+        if self.local_q < 4 and self.pending_buffer > 0:
+            to_move = min(4 - self.local_q, self.pending_buffer)
+            self.local_q += to_move
+            self.pending_buffer -= to_move
+                
+        is_pending_overall = is_pending or bg_pending
+        total_pending = (1 if is_pending else 0) + num_bg_pending
 
         r_comm = random.random()
         if r_comm < 0.1:
@@ -198,4 +185,4 @@ class MDCMDPEnv(gym.Env):
             
         self.state = np.array([next_task_type, next_comm, self.local_q, self.neighbor_qs[0], self.neighbor_qs[1]], dtype=np.int32)
         
-        return self.state, reward, False, self.current_step >= self.max_steps, {"delay": total_delay, "is_dropped": is_dropped_overall, "energy": energy_consumed, "dropped_count": total_drops}
+        return self.state, reward, False, self.current_step >= self.max_steps, {"delay": total_delay, "is_pending": is_pending_overall, "energy": energy_consumed, "pending_count": total_pending}

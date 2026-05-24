@@ -8,7 +8,7 @@ episodes = 30000
 
 for l in lambdas:
     print(f"\n### Task Arrival Rate Lambda = {l}")
-    print("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Drops / Episode | Avg Energy / Episode | Solver/Train Time (s) |")
+    print("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Pending / Episode | Avg Energy / Episode | Solver/Train Time (s) |")
     print("| :--- | :--- | :--- | :--- | :--- | :--- |")
     
     for r in reward_types:
@@ -31,10 +31,10 @@ for l in lambdas:
                 first_row = False
                 
                 reward_val = f"{row['reward']:.2f}"
-                drops_val = f"{row['drops']:.2f}"
+                pending_val = f"{row['pending']:.2f}"
                 energy_val = f"{row['energy']:.2f}"
                 time_val = f"{row['time']:.2f}s" if row['time'] > 0 else "N/A"
                 
-                print(f"| {rf_col} | {row['agent']} | {reward_val} | {drops_val} | {energy_val} | {time_val} |")
+                print(f"| {rf_col} | {row['agent']} | {reward_val} | {pending_val} | {energy_val} | {time_val} |")
         else:
             print(f"| **{r.capitalize()}** | *No results file found* | | | | |")

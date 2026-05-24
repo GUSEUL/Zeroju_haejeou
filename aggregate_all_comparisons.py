@@ -1,17 +1,17 @@
 import os
 import pandas as pd
 
-lambdas = [0.1, 0.5, 1.5, 3.0]
-reward_types = ["standard", "sparse", "cliff", "improved"]
+lambdas = [0.5, 1.0, 1.5]
+reward_types = ["standard", "cliff"]
 base_dir = "results"
 
 for l in lambdas:
     print(f"\n### Task Arrival Rate Lambda = {l} (Comparative Summary)")
-    print("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Drops / Episode | Avg Energy / Episode | Episodes | solver/train Time |")
+    print("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Pending / Episode | Avg Energy / Episode | Episodes | solver/train Time |")
     print("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
     
     for r in reward_types:
-        ep = 20000 if r == "improved" else 30000
+        ep = 20000
         csv_path = os.path.join(base_dir, f"L_{l}_E_{ep}", r, "mdp_final_results.csv")
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path)
@@ -31,10 +31,10 @@ for l in lambdas:
                 first_row = False
                 
                 reward_val = f"{row['reward']:.2f}"
-                drops_val = f"{row['drops']:.2f}"
+                pending_val = f"{row['pending']:.2f}"
                 energy_val = f"{row['energy']:.2f}"
                 time_val = f"{row['time']:.2f}s" if row['time'] > 0 else "N/A"
                 
-                print(f"| {rf_col} | {row['agent']} | {reward_val} | {drops_val} | {energy_val} | {ep} | {time_val} |")
+                print(f"| {rf_col} | {row['agent']} | {reward_val} | {pending_val} | {energy_val} | {ep} | {time_val} |")
         else:
             print(f"| **{r.capitalize()}** | *No results file found* | | | | | |")

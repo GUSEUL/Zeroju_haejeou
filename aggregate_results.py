@@ -12,7 +12,7 @@ markdown_output.append("The MDP pipeline was executed for all combinations. Belo
 
 for l in lambdas:
     markdown_output.append(f"### A. Task Arrival Rate $\\lambda = {l}$\n")
-    markdown_output.append("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Drops / Episode | Avg Energy / Episode | Solver/Train Time (s) |")
+    markdown_output.append("| Reward Formulation | Agent / Algorithm | Expected Reward | Avg Pending / Episode | Avg Energy / Episode | Solver/Train Time (s) |")
     markdown_output.append("| :--- | :--- | :--- | :--- | :--- | :--- |")
     
     for r in reward_types:
@@ -35,12 +35,12 @@ for l in lambdas:
                 first_row = False
                 
                 reward_val = f"{row['reward']:.2f}"
-                drops_val = f"{row['drops']:.2f}"
+                pending_val = f"{row['pending']:.2f}"
                 energy_val = f"{row['energy']:.2f}"
                 time_val = f"{row['time']:.2f}s" if row['time'] > 0 else "N/A"
                 
                 markdown_output.append(
-                    f"| {rf_col} | {row['agent']} | {reward_val} | {drops_val} | {energy_val} | {time_val} |"
+                    f"| {rf_col} | {row['agent']} | {reward_val} | {pending_val} | {energy_val} | {time_val} |"
                 )
         else:
             markdown_output.append(f"| **{r.capitalize()}** | *No results file found* | | | | |")
@@ -64,9 +64,9 @@ discussion = """
 - **Time Complexity:** The analytical solver built the transitions and rewards in $<5$ seconds, and PI/VI solved the 10,890-state MDP in $<10$ seconds. In contrast, RL required $\approx 75$ seconds of training per algorithm, illustrating the advantage of model-based DP when transition probabilities are known.
 
 ### 2. Impact of Traffic Congestion (Lambda)
-- **Low Traffic ($\lambda=0.5$):** All agents easily handle the arrivals, resulting in **0.0 drops** across all reward formulations. Delays and local queues remain near zero.
-- **Moderate Traffic ($\lambda=1.5$):** Congestion begins to build. The agents must offload to neighbors to maintain stability. Standard and cliff rewards guide the agent to manage queues effectively, keeping drops low, whereas the sparse reward allows queue lengths to build up without penalty.
-- **High Traffic ($\lambda=3.5$):** Arrivals exceed the joint processing capability of the system. Drops are mathematically unavoidable. The Standard reward forces intentional drops to avoid queue penalties, while the Cliff reward drops aggressively to avoid the highly volatile penalty near the queue boundary.
+- **Low Traffic ($\lambda=0.5$):** All agents easily handle the arrivals, resulting in **0.0 pending** across all reward formulations. Delays and local queues remain near zero.
+- **Moderate Traffic ($\lambda=1.5$):** Congestion begins to build. The agents must offload to neighbors to maintain stability. Standard and cliff rewards guide the agent to manage queues effectively, keeping pending low, whereas the sparse reward allows queue lengths to build up without penalty.
+- **High Traffic ($\lambda=3.5$):** Arrivals exceed the joint processing capability of the system. Pending is mathematically unavoidable. The Standard reward forces intentional pending to avoid queue penalties, while the Cliff reward pends aggressively to avoid the highly volatile penalty near the queue boundary.
 
 ### 3. Comparison of Reward Formulations
 - **Standard:** Successfully balances delay, energy, and queue occupancy.

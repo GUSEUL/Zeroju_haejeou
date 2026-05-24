@@ -76,9 +76,9 @@ def generate_facet_grid(policy, name, lambda_val, reward_type, output_dir):
     patch_loc = mpatches.Patch(color='#3b82f6', label='Local')
     patch_n1 = mpatches.Patch(color='#10b981', label='Neighbor 1')
     patch_n2 = mpatches.Patch(color='#84cc16', label='Neighbor 2')
-    patch_drop = mpatches.Patch(color='#ef4444', label='Drop')
+    patch_pending = mpatches.Patch(color='#ef4444', label='Pending')
     
-    fig.legend(handles=[patch_loc, patch_n1, patch_n2, patch_drop], loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0.02))
+    fig.legend(handles=[patch_loc, patch_n1, patch_n2, patch_pending], loc='lower center', ncol=4, bbox_to_anchor=(0.5, 0.02))
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
     
     # Save plot

@@ -13,7 +13,7 @@ $$S = (\text{TaskType}, \text{CommState}, \text{LocalQueue}, \text{Neighbor1Queu
 각 상태 구성 변수의 세부 이산 레벨은 다음과 같습니다.
 
 1. **태스크 종류 ($\text{TaskType} \in \{0, 1\}$)**:
-   - $\text{Task} = 0$: URLLC 태스크 (latency-sensitive, 지연 및 드롭에 매우 민감)
+   - $\text{Task} = 0$: URLLC 태스크 (latency-sensitive, 지연 및 대기(Pending)에 매우 민감)
    - $\text{Task} = 1$: eMBB 태스크 (latency-tolerant, 대용량 전송 위주, 지연 허용)
 
 2. **통신 및 채널 품질 ($\text{CommState} \in \{0, 1, 2\}$)**:
@@ -22,7 +22,7 @@ $$S = (\text{TaskType}, \text{CommState}, \text{LocalQueue}, \text{Neighbor1Queu
    - $\text{Comm} = 2$: 좋음 (Good) - 높은 전송 속도로 인한 빠른 전송 보장
 
 3. **로컬 대기열 크기 ($\text{LocalQueue} \in \{0, 1, 2, 3, 4\}$)**:
-   - 단말 장치의 물리 버퍼 용량은 $5$입니다. 큐 크기가 $5$ 이상 적재되면 강제로 드롭(Overflow Drop)이 발생하며, 인덱스로는 $0 \sim 4$로 표현됩니다.
+   - 단말 장치의 물리 버퍼 용량은 $5$입니다. 큐 크기가 $5$ 이상 적재되면 강제로 대기(Pending)(Overflow Pending)이 발생하며, 인덱스로는 $0 \sim 4$로 표현됩니다.
 
 4. **이웃 노드 1 대기열 크기 ($\text{Neighbor1Queue} \in \{0, 1, 2, \dots, 10\}$)**:
    - 무선 협력 통신 대상인 이웃 에지 노드 1의 물리 큐 크기 (버퍼 한도 10).
@@ -63,15 +63,15 @@ $$A = \{0, 1, 2, 3\}$$
 * **$a = 0$ (Local Processing)**: 태스크를 로컬 CPU 대기열($Q_{\text{local}}$)에 삽입하여 직접 실행합니다.
 * **$a = 1$ (Offload to Neighbor 1)**: 무선 링크를 통해 첫 번째 이웃 에지 노드 대기열($Q_{n_1}$)로 오프로딩합니다.
 * **$a = 2$ (Offload to Neighbor 2)**: 무선 링크를 통해 두 번째 이웃 에지 노드 대기열($Q_{n_2}$)로 오프로딩합니다.
-* **$a = 3$ (Intentional Drop)**: 버퍼 포화 상태를 막거나 지연 폭증을 줄이기 위해 태스크를 즉시 폐기(드롭)합니다.
+* **$a = 3$ (Intentional Pending)**: 버퍼 포화 상태를 막거나 지연 폭증을 줄이기 위해 태스크를 즉시 폐기(대기(Pending))합니다.
 
 ---
 
 ## 3. 보상 함수 (Reward Function, $R$)
 
-보상 함수는 시스템의 지연 시간 및 에너지 소모 비용($\text{Cost}_{\text{delay, energy}}$)과 대기열 적재로 인한 혼잡 패널티($\text{Penalty}_{\text{queue}}$), 태스크 유실에 따르는 드롭 패널티($\text{Penalty}_{\text{drop}}$)의 총합에 음수부호($-$)를 붙여 정의됩니다. 에이전트는 누적 보상의 기댓값을 극대화(비용 최소화)하도록 유도됩니다.
+보상 함수는 시스템의 지연 시간 및 에너지 소모 비용($\text{Cost}_{\text{delay, energy}}$)과 대기열 적재로 인한 혼잡 패널티($\text{Penalty}_{\text{queue}}$), 태스크 지연 대기에 따르는 대기(Pending) 패널티($\text{Penalty}_{\text{pending}}$)의 총합에 음수부호($-$)를 붙여 정의됩니다. 에이전트는 누적 보상의 기댓값을 극대화(비용 최소화)하도록 유도됩니다.
 
-$$R = -\left(\text{Cost}_{\text{delay, energy}} + \text{Penalty}_{\text{queue}} + \text{Penalty}_{\text{drop}} + \text{Penalty}_{\text{neighbor}}\right)$$
+$$R = -\left(\text{Cost}_{\text{delay, energy}} + \text{Penalty}_{\text{queue}} + \text{Penalty}_{\text{pending}} + \text{Penalty}_{\text{neighbor}}\right)$$
 
 ### 3.1 지연 및 에너지 비용 ($\text{Cost}_{\text{delay, energy}}$)
 
@@ -82,8 +82,7 @@ $$\text{Cost}_{\text{delay, energy}} = w_{\text{task}} \cdot w_{\text{delay}} \c
 * **$\text{NormEnergy} = \min\left(1.0, \frac{\text{EnergyConsumed}}{\text{MaxEnergy}}\right)$**: 최대 1.0J을 기준으로 소모한 에너지를 $0 \sim 1$ 사이로 정규화 ($\text{MaxEnergy} = 1.0$)
 
 **태스크별 긴급성 가중치 ($w_{\text{task}}$)**
-* *Standard / Sparse / Cliff 설정*: URLLC ($\text{Task}=0$) 시 $2.0$, eMBB ($\text{Task}=1$) 시 $0.5$
-* *Improved 설정 (개선 설계)*: URLLC ($\text{Task}=0$) 시 **$2.5$** (초저지연성 강화), eMBB ($\text{Task}=1$) 시 $0.5$
+* **Standard 및 Cliff 설정 공통**: URLLC ($\text{Task}=0$) 시 **$2.5$** (초저지연성 강화), eMBB ($\text{Task}=1$) 시 $0.5$
 
 ---
 
@@ -103,7 +102,7 @@ $$\text{Cost}_{\text{delay, energy}} = w_{\text{task}} \cdot w_{\text{delay}} \c
 * 연산 지연: $\text{Delay}_{\text{comp}} = \frac{Q_{n_i} + 1}{8.0} + 0.05$ (이웃 에지 노드는 연산 속도 분모 $8.0$을 가진 고성능 프로세서 장착)
 * 에너지 소모: $\text{EnergyConsumed} = \text{EnergyCost}(\text{Comm}) \cdot 0.6$ (오프로딩 시 무선 송출에 소모되는 전력은 로컬 연산 대비 $60\%$ 수준으로 절감)
 
-#### 3) 의도적 드롭 ($a = 3$)
+#### 3) 의도적 대기(Pending) ($a = 3$)
 * 지연 시간 및 소모 에너지 모두 0으로 산출 ($\text{Delay}_{\text{trans}} = 0.0, \text{Delay}_{\text{comp}} = 0.0, \text{EnergyConsumed} = 0.0$)
 
 ---
@@ -114,33 +113,28 @@ $$\text{Cost}_{\text{delay, energy}} = w_{\text{task}} \cdot w_{\text{delay}} \c
 
 #### 1) 로컬 대기열 패널티 ($\text{Penalty}_{\text{queue}}$)
 $$\text{Penalty}_{\text{queue}} = \beta_{\text{local}} \cdot \left(\frac{Q_{\text{local}}}{\text{MaxLocalQueue}}\right)^2 \quad (\text{단, } \text{MaxLocalQueue} = 5.0)$$
-* *Standard 설정*: $\beta_{\text{local}} = 5.0$
-* *Cliff / Sparse 설정*: $\beta_{\text{local}} = 0.0$ (큐 패널티 미적용)
-* *Improved 설정 (개선안)*: URLLC ($\text{Task}=0$) 시 $\beta_{\text{local}} = 8.0$ (대기 절대 불가), eMBB ($\text{Task}=1$) 시 $\beta_{\text{local}} = 3.0$ (버퍼 대기 수용)
+* **Standard 및 Cliff 설정 공통**: URLLC ($\text{Task}=0$) 시 $\beta_{\text{local}} = 8.0$ (대기 절대 불가), eMBB ($\text{Task}=1$) 시 $\beta_{\text{local}} = 3.0$ (버퍼 대기 수용)
 
 #### 2) 이웃 대기열 패널티 ($\text{Penalty}_{\text{neighbor}}$)
 에이전트가 오프로딩 $a \in \{1, 2\}$을 선택했을 때 적재 대상 이웃 노드 $i$의 버퍼 혼잡도를 반영합니다.
 $$\text{Penalty}_{\text{neighbor}} = \beta_{\text{neighbor}} \cdot \left(\frac{Q_{n_i}}{10.0}\right)^2$$
-* *Standard / Cliff 설정*: $\beta_{\text{neighbor}} = 5.0$
-* *Sparse 설정*: $\beta_{\text{neighbor}} = 0.0$
-* *Improved 설정 (개선안)*: URLLC ($\text{Task}=0$) 시 $\beta_{\text{neighbor}} = 6.0$, eMBB ($\text{Task}=1$) 시 $\beta_{\text{neighbor}} = 3.0$
+* **Standard 및 Cliff 설정 공통**: URLLC ($\text{Task}=0$) 시 $\beta_{\text{neighbor}} = 6.0$, eMBB ($\text{Task}=1$) 시 $\beta_{\text{neighbor}} = 3.0$
 
 ---
 
-### 3.4 태스크 유실 패널티 ($\text{Penalty}_{\text{drop}}$)
+### 3.4 태스크 지연 대기 패널티 ($\text{Penalty}_{\text{pending}}$)
 
-에이전트가 의도적 드롭($a=3$)을 수행했거나, 타임스텝 연산 이후 백그라운드 유입 Poisson 도착(Poisson Arrival)량으로 인해 로컬 큐 용량을 초과해 자동 드롭($\text{num}_{\text{bg, drops}}$)된 경우에 가해집니다.
+에이전트가 의도적 대기(Pending)($a=3$)을 수행했거나, 로컬/이웃 버퍼 용량을 초과해 자동 대기(Pending)된 경우에 가해집니다.
 
-* **의도적 드롭 ($a=3$) 패널티**: $\gamma$
-* **백그라운드 버퍼 오버플로우 패널티**: $\gamma \cdot \text{num}_{\text{bg, drops}}$
+* **의도적 대기(Pending) ($a=3$) 패널티**: $\gamma$
+* **로컬/이웃 버퍼 오버플로우 패널티**: $\gamma \cdot \text{num}_{\text{overflow, pendings}}$
 
 **보상 설정 방식별 패널티 상수 ($\gamma$)**
-1. **Standard 설정**: $\gamma = 5.0$ (낮은 패널티로 인하여 중부하 조건에서 쉽게 태스크를 버림)
-2. **Sparse 설정**: $\gamma = 100.0$ (비용을 배제하고 드롭 여부에만 집중)
-3. **Cliff 설정**: $\gamma = 1000.0$ (드롭을 매우 치명적인 에러로 간주)
-4. **Improved 설정 (개선안)**: **태스크 종류별 차등 가점**
-   - URLLC ($\text{Task}=0$) 시: $\gamma_{\text{task}} = 30.0$ (지연 민감 태스크의 전송 유실 원천 방지)
-   - eMBB ($\text{Task}=1$) 시: $\gamma_{\text{task}} = 10.0$ (혼잡 상황 시 효율적인 드롭 타협 가능)
+1. **Standard 설정**: **태스크 종류별 차등 가점** (기존 improved 설정)
+   - URLLC ($\text{Task}=0$) 시: $\gamma_{\text{task}} = 30.0$ (지연 민감 태스크의 전송 지연 대기 원천 방지)
+   - eMBB ($\text{Task}=1$) 시: $\gamma_{\text{task}} = 10.0$ (혼잡 상황 시 효율적인 대기(Pending) 타협 가능)
+2. **Cliff 설정**: **고정 대형 패널티 적용** (기존 improved에 cliff급 drop penalty 1000.0 결합)
+   - URLLC 및 eMBB 모두 동일하게: $\gamma = 1000.0$ (대기 처리를 매우 치명적인 에러로 간주하여 강하게 회피 유도)
 
 ### 3.5 상태 전이 확률 (State Transition Probability, $P(S_{\text{next}} \mid S, a)$) 설계 및 구현
 
@@ -187,12 +181,16 @@ $$P(\text{TaskType}_{\text{next}} = nt) = 0.5 \quad \text{for } nt \in \{0, 1\}$
 
 ##### (3) 로컬 대기열 (LocalQueue)
 행동 $a$가 선택되면 우선 로컬 대기열에 태스크가 추가되어 행동 후 대기열 크기 $q_{\text{local, act}}$가 결정됩니다.
-* $a = 0$ (로컬 처리)인 경우: $q_{\text{local, act}} = \min(4, q_{\text{local}} + 1)$ (단, $q_{\text{local}} + 1 \ge 5$ 이면 오버플로우 드롭 발생 및 드롭 플래그 활성화)
+* $a = 0$ (로컬 처리)인 경우: $q_{\text{local, act}} = \min(4, q_{\text{local}} + 1)$ (단, $q_{\text{local}} + 1 \ge 5$ 이면 오버플로우 대기(Pending) 발생 및 대기(Pending) 플래그 활성화)
 * $a \neq 0$인 경우: $q_{\text{local, act}} = q_{\text{local}}$
 
 이후 로컬 서비스 처리율 $S_{\text{local}} = 2$만큼 태스크가 소모된 후($q_{\text{served}}$), 외부로부터 신규 태스크 유입량 $\text{arr} \sim \text{Poisson}(\lambda)$이 더해져 다음 상태의 대기열 크기 $q_{\text{local, next}}$가 결정되며 물리 한도인 $4$로 클리핑됩니다.
 $$q_{\text{served}} = \max(0, q_{\text{local, act}} - 2)$$
-$$q_{\text{local, next}} = \min(4, q_{\text{served}} + \text{arr})$$
+$$q_{\text{local, next\_temp}} = \min(4, q_{\text{served}} + \text{arr})$$
+
+또한, 태스크가 완전히 버려지지 않고 무한대 크기의 지연 대기 버퍼(Pending Buffer)에 보관되므로, 로컬 큐에 남은 여유 공간만큼 버퍼로부터 태스크를 복원(Replenish)하여 채워 넣습니다.
+$$q_{\text{local, next}} = q_{\text{local, next\_temp}} + \min(4 - q_{\text{local, next\_temp}}, \text{pending\_buffer\_size})$$
+$$\text{pending\_buffer\_size}_{\text{next}} = \text{pending\_buffer\_size} - \min(4 - q_{\text{local, next\_temp}}, \text{pending\_buffer\_size})$$
 
 푸아송 분포의 도착 확률 질량 함수를 $P(\text{arr} = k) = \frac{\lambda^k e^{-\lambda}}{k!}$라 할 때, 로컬 대기열의 구체적인 상태 전이 확률 식은 다음과 같습니다.
 * $q_{\text{local, next}} < 4$ 인 경우 ($q_{\text{local, next}} \ge q_{\text{served}}$):
@@ -202,25 +200,23 @@ $$q_{\text{local, next}} = \min(4, q_{\text{served}} + \text{arr})$$
 
 ##### (4) 이웃 노드 대기열 (NeighborQueues)
 각 이웃 노드 $i \in \{1, 2\}$의 대기열은 행동 $a$에 따라 행동 후 대기열 크기 $q_{n_i, \text{act}}$로 업데이트됩니다.
-* $a = i$ (이웃 노드 오프로딩)인 경우: $q_{n_i, \text{act}} = q_{n_i} + 1$ (최대 $11$)
+* $a = i$ (이웃 노드 오프로딩)인 경우: $q_{n_i, \text{act}} = \min(10, q_{n_i} + 1)$ (단, $q_{n_i} + 1 \ge 11$ 이면 오버플로우 대기(Pending) 발생 및 대기(Pending) 플래그 활성화)
 * $a \neq i$인 경우: $q_{n_i, \text{act}} = q_{n_i}$
 
-그 후 이웃 노드 자체의 확률적 처리 속도 $S_{n_i} \in \{1, 2\}$ 만큼 큐 크기가 감소하며, 각각 $0.5$의 확률을 가집니다.
-$$P(S_{n_i} = 1) = 0.5, \quad P(S_{n_i} = 2) = 0.5$$
+그 후 이웃 노드 자체의 확률적 처리 속도 $S_{n_i} \in \{0, 1\}$ 만큼 큐 크기가 감소하며, 각각 $0.8$과 $0.2$의 확률을 가집니다 (평균 처리 속도 $0.2$).
+$$P(S_{n_i} = 0) = 0.8, \quad P(S_{n_i} = 1) = 0.2$$
 
-감소 후의 대기열 크기는 $[0, 10]$ 범위로 클리핑됩니다.
-$$q_{n_i, \text{next}} = \min(10, \max(0, q_{n_i, \text{act}} - S_{n_i}))$$
+감소 후의 대기열 크기는 $[0, 10]$ 범위로 결정됩니다.
+$$q_{n_i, \text{next}} = \max(0, q_{n_i, \text{act}} - S_{n_i})$$
 
 구체적인 전이 확률 규칙은 다음과 같이 적용됩니다.
-* $q_{n_i, \text{act}} \ge 2$ 인 경우:
-  $$P(q_{n_i, \text{next}} = q_{n_i, \text{act}} - 1 \mid q_{n_i, \text{act}}) = 0.5$$
-  $$P(q_{n_i, \text{next}} = q_{n_i, \text{act}} - 2 \mid q_{n_i, \text{act}}) = 0.5$$
-* $q_{n_i, \text{act}} = 1$ 인 경우:
-  $$P(q_{n_i, \text{next}} = 0 \mid q_{n_i, \text{act}} = 1) = 1.0$$
+* $q_{n_i, \text{act}} \ge 1$ 인 경우:
+  $$P(q_{n_i, \text{next}} = q_{n_i, \text{act}} \mid q_{n_i, \text{act}}) = 0.8$$
+  $$P(q_{n_i, \text{next}} = q_{n_i, \text{act}} - 1 \mid q_{n_i, \text{act}}) = 0.2$$
 * $q_{n_i, \text{act}} = 0$ 인 경우:
   $$P(q_{n_i, \text{next}} = 0 \mid q_{n_i, \text{act}} = 0) = 1.0$$
 
-(예: `trans_n[q_curr, q_next] += 0.5`를 두 차례 적용하여, $S_{n_i}$의 값에 따른 전이 확률을 합산합니다.)
+(예: `trans_n[q_curr, q_next] += prob`를 적용하여, $S_{n_i}$의 값에 따른 전이 확률을 합산합니다.)
 
 ---
 
@@ -235,8 +231,8 @@ $$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
 * **모델 해석(Model-based calculations - `build_mdp_model.py`)**:
   - 상태 전이 확률 행렬 $P$를 수학적으로 생성하기 위해 푸아송 PMF를 사용합니다. 로컬 처리 이후 남은 큐 크기($Q_{\text{served}}$)와 신규 유입량($\text{arr}$)의 합이 다음 단계의 로컬 큐 크기 $Q_{\text{next}}$로 전이될 확률을 다음과 같이 계산합니다.
     $$P(Q_{\text{next}} \mid Q_{\text{served}}, \lambda) = \sum_{\text{arr}} P(X = \text{arr}) \quad (\text{단, } Q_{\text{next}} = \min(4, Q_{\text{served}} + \text{arr}))$$
-  - 또한, 버퍼 한도(4)를 넘어서 발생하는 기대 백그라운드 오버플로우 드롭 수($\mathbb{E}[\text{num}_{\text{bg, drops}}]$)의 수학적 기댓값을 구하는 데 활용됩니다.
-    $$\mathbb{E}[\text{num}_{\text{bg, drops}}] = \sum_{\text{arr} \ge 5 - Q_{\text{served}}} P(X = \text{arr}) \cdot (Q_{\text{served}} + \text{arr} - 4)$$
+  - 또한, 버퍼 한도(4)를 넘어서 발생하는 기대 백그라운드 오버플로우 대기(Pending) 수($\mathbb{E}[\text{num}_{\text{bg, pendings}}]$)의 수학적 기댓값을 구하는 데 활용됩니다.
+    $$\mathbb{E}[\text{num}_{\text{bg, pendings}}] = \sum_{\text{arr} \ge 5 - Q_{\text{served}}} P(X = \text{arr}) \cdot (Q_{\text{served}} + \text{arr} - 4)$$
 * **시뮬레이션 환경 (Model-free Environment - `mdc_mdp_env.py`)**:
   - 실제 스텝마다 푸아송 분포로부터 도착 태스크 수를 난수 샘플링합니다. 연산 속도 향상을 위해 초기화 시점에 `np.random.poisson`을 사용하여 100,000개의 유입량 샘플을 버퍼로 사전 생성한 후 순환 참조하여 적용합니다.
     $$\text{arrival} = \text{Poisson}(\lambda)$$
@@ -258,11 +254,11 @@ $$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
 
 ## 4. 학습 알고리즘 개선 사항 (Pessimistic Q-Initialization & Exploration Tuning)
 
-음수 보상 구조를 가진 본 오프로딩 MDP에서 미방문 상태 및 초기 탐험 시의 오작동(비어 있는 대기열에서의 무작위 드롭 등)을 해결하기 위해 알고리즘 파라미터를 다음과 같이 수정하였습니다.
+음수 보상 구조를 가진 본 오프로딩 MDP에서 미방문 상태 및 초기 탐험 시의 오작동(비어 있는 대기열에서의 무작위 대기(Pending) 등)을 해결하기 위해 알고리즘 파라미터를 다음과 같이 수정하였습니다.
 
 ### 4.1 비관적 Q-테이블 초기화 (Pessimistic Q-table Initialization)
 * **기존**: $Q(s, a) = 0.0$으로 전체 초기화
-  - 모든 정상 보상이 음수($< 0$)이므로, 한 번도 경험하지 않은 나쁜 행동(예: 드롭 $a=3$)의 Q-값이 경험하여 패널티를 받은 안전한 행동(로컬 처리 $a=0$)의 Q-값($\approx -3.5$)보다 크게 평가되어 최적화 도중 오동작을 일으킴.
+  - 모든 정상 보상이 음수($< 0$)이므로, 한 번도 경험하지 않은 나쁜 행동(예: 대기(Pending) $a=3$)의 Q-값이 경험하여 패널티를 받은 안전한 행동(로컬 처리 $a=0$)의 Q-값($\approx -3.5$)보다 크게 평가되어 최적화 도중 오동작을 일으킴.
 * **수정**: $Q(s, a) = -150.0$으로 초기치 설정 (비관적 초기화)
   - 학습되지 않은 미방문 상태-행동 쌍의 가치를 매우 낮게 평가함으로써, 검증되지 않은 돌발 행동을 취하는 문제를 원천적으로 방지하고 충분한 탐험 이후 검증된 최적의 경로를 우선적으로 선택하도록 유도함.
 
@@ -271,9 +267,9 @@ $$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
 * **수정**: **20,000 에피소드** 학습으로 연장 및 감쇠 스케줄러 완화 (총 에피소드의 **$60\%$** 시점인 $\text{episodes} \times 0.6$ 스텝까지 서서히 감쇠)
   - 탐험 감쇠는 `decay = np.exp(np.log(eps_min)/(episodes * 0.6))` 공식을 활용하여 탐험율 $\epsilon$이 $20,000 \times 0.6 = 12,000$ 에피소드 시점까지 점진적으로 감소하도록 설계되었습니다.
   - 학습 수렴 횟수를 4배 늘려 희소 상태 공간(State Sparsity)의 방문 빈도를 확보함.
-  - 탐험 확률 $\epsilon$이 더 오랜 기간 동안 큰 값을 유지하도록 스케줄링을 완화하여, 에이전트가 벼랑 끝 상태나 드롭 상태의 정확한 패널티 기대치를 충분히 업데이트할 시간을 확보함.
+  - 탐험 확률 $\epsilon$이 더 오랜 기간 동안 큰 값을 유지하도록 스케줄링을 완화하여, 에이전트가 벼랑 끝 상태나 대기(Pending) 상태의 정확한 패널티 기대치를 충분히 업데이트할 시간을 확보함.
 
-이 수정을 통해 Q-Learning과 Expected SARSA 에이전트는 미방문 상태에서의 오작동(비어 있는 대기열에서의 태스크 드롭)을 근절하고, 수학적 상한선인 DP(동적 계획법) 정책의 최적 보상 수준과 드롭 성능에 완벽하게 수렴하였습니다.
+이 수정을 통해 Q-Learning과 Expected SARSA 에이전트는 미방문 상태에서의 오작동(비어 있는 대기열에서의 태스크 대기(Pending))을 근절하고, 수학적 상한선인 DP(동적 계획법) 정책의 최적 보상 수준과 대기(Pending) 성능에 완벽하게 수렴하였습니다.
 
 ---
 

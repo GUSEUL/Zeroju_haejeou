@@ -38,8 +38,8 @@ def main():
     parser.add_argument("--episodes", type=int, default=30000)
     args = parser.parse_args()
     
-    lambdas = [0.1, 0.5, 1.5, 3.0]
-    reward_types = ["standard", "sparse", "cliff", "improved"]
+    lambdas = [0.5, 1.0, 1.5]
+    reward_types = ["standard", "cliff"]
     
     data = {
         "lambdas": lambdas,
@@ -61,8 +61,8 @@ def main():
             else:
                 print(f"DP Model not found: {model_path}")
                 
-            # Episode count selection: 20000 for improved, 30000 (args.episodes) for baseline
-            ep = 20000 if r == "improved" else args.episodes
+            # Episode count selection: 20000 episodes for both improved and cliff
+            ep = 20000
             
             # 2. Q-Learning
             ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.csv"

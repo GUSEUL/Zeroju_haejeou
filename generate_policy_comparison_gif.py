@@ -10,7 +10,7 @@ import pickle
 # Output directory paths
 vis_dir = "visualization"
 res_dir = "results"
-artifacts_dir = r"C:\Users\sbeen\OneDrive\Desktop\RL_project - 복사본" # Let's save inside workspace root as well, and copy to AppData artifacts dir
+artifacts_dir = r"C:\Users\sbeen\OneDrive\Desktop\RL_project - 복사본" # Save inside workspace root
 appdata_artifacts_dir = r"C:\Users\sbeen\.gemini\antigravity-cli\brain\a77332d9-2947-4557-b570-286414b9617e"
 
 os.makedirs(vis_dir, exist_ok=True)
@@ -37,8 +37,8 @@ def solve_dp_optimal(P, R, gamma=0.95, theta=1e-12):
     print("DP Optimal Policy solved successfully.")
     return policy
 
-# Helper to simulate one step
-def simulate_step(policy_or_q, state, arrival, task_type, comm_next, n1_served_rate, n2_served_rate, local_service_rate=2):
+# Helper to simulate one step with infinite pending buffer queue dynamics
+def simulate_step(policy_or_q, state, pending_buffer, arrival, task_type, comm_next, n1_served_rate, n2_served_rate, local_service_rate=2):
     task, comm, q_l, q_n1, q_n2 = state
     
     # Action lookup (policy is 1D array of actions, Q-table is 2D array of action values)
@@ -52,8 +52,8 @@ def simulate_step(policy_or_q, state, arrival, task_type, comm_next, n1_served_r
     q_l_act = q_l
     q_n1_act = q_n1
     q_n2_act = q_n2
-    intentional_drop = (action == 3)
-    overflow_drop = False
+    intentional_pending = (action == 3)
+    overflow_pending = False
     
     if action == 0:
         q_l_act += 1
@@ -61,25 +61,48 @@ def simulate_step(policy_or_q, state, arrival, task_type, comm_next, n1_served_r
         q_n1_act += 1
     elif action == 2:
         q_n2_act += 1
+    elif action == 3: # Pending action: put in the pending buffer
+        pending_buffer += 1
         
     if q_l_act >= 5:
-        overflow_drop = True
+        overflow_pending = True
+        overflow_count = q_l_act - 4
+        pending_buffer += overflow_count
         q_l_act = 4
         
-    # Process queue tasks
+    if q_n1_act >= 11:
+        overflow_pending = True
+        overflow_count = q_n1_act - 10
+        pending_buffer += overflow_count
+        q_n1_act = 10
+        
+    if q_n2_act >= 11:
+        overflow_pending = True
+        overflow_count = q_n2_act - 10
+        pending_buffer += overflow_count
+        q_n2_act = 10
+        
+    # Process local queue tasks
     q_l_served = max(0, q_l_act - local_service_rate)
     
-    # stochastic processing (passed as arguments to align between different policies)
+    # Process neighbor queue tasks stochastically (clipped to 10)
     q_n1_served = min(10, max(0, q_n1_act - n1_served_rate))
     q_n2_served = min(10, max(0, q_n2_act - n2_served_rate))
     
-    # Background arrivals and overflow
-    bg_drops = max(0, q_l_served + arrival - 4)
+    # Background arrivals and local queue overflow
+    num_bg_pending = max(0, q_l_served + arrival - 4)
     q_l_next = min(4, q_l_served + arrival)
+    pending_buffer += num_bg_pending
+    
+    # Replenish local queue from the infinite pending buffer if space becomes available
+    if q_l_next < 4 and pending_buffer > 0:
+        to_move = min(4 - q_l_next, pending_buffer)
+        q_l_next += to_move
+        pending_buffer -= to_move
     
     next_state = (task_type, comm_next, q_l_next, q_n1_served, q_n2_served)
     
-    return next_state, {
+    return next_state, pending_buffer, {
         'action': action,
         'q_l_act': q_l_act,
         'q_n1_act': q_n1_act,
@@ -87,11 +110,12 @@ def simulate_step(policy_or_q, state, arrival, task_type, comm_next, n1_served_r
         'q_l_next': q_l_next,
         'q_n1_next': q_n1_served,
         'q_n2_next': q_n2_served,
-        'intentional_drop': intentional_drop,
-        'overflow_drop': overflow_drop,
-        'bg_drops': bg_drops,
+        'intentional_pending': intentional_pending,
+        'overflow_pending': overflow_pending,
+        'bg_pending': num_bg_pending,
         'arrival': arrival,
-        'task_type': task
+        'task_type': task,
+        'pending_buffer_size': pending_buffer
     }
 
 def generate_comparison_animation(lambda_val, episodes, reward_type, out_filename):
@@ -138,10 +162,13 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     n2_served_rates = [1 if random.random() < 0.2 else 0 for _ in range(steps)]
 
     # Run simulations for all 3 policies
-    # Start all states at empty queues: (task_type, comm_state, local_q, n1_q, n2_q)
     state_dp = (task_types[0], comm_states[0], 0, 0, 0)
     state_sarsa = (task_types[0], comm_states[0], 0, 0, 0)
     state_ql = (task_types[0], comm_states[0], 0, 0, 0)
+
+    pending_buffer_dp = 0
+    pending_buffer_sarsa = 0
+    pending_buffer_ql = 0
 
     history_dp = []
     history_sarsa = []
@@ -151,16 +178,16 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         comm_next = comm_states[t+1] if t < steps - 1 else comm_states[-1]
         task_next = task_types[t+1] if t < steps - 1 else task_types[-1]
         
-        state_dp, info_dp = simulate_step(
-            policy_dp, state_dp, arrivals[t], task_next, comm_next,
+        state_dp, pending_buffer_dp, info_dp = simulate_step(
+            policy_dp, state_dp, pending_buffer_dp, arrivals[t], task_next, comm_next,
             n1_served_rates[t], n2_served_rates[t]
         )
-        state_sarsa, info_sarsa = simulate_step(
-            q_sarsa, state_sarsa, arrivals[t], task_next, comm_next,
+        state_sarsa, pending_buffer_sarsa, info_sarsa = simulate_step(
+            q_sarsa, state_sarsa, pending_buffer_sarsa, arrivals[t], task_next, comm_next,
             n1_served_rates[t], n2_served_rates[t]
         )
-        state_ql, info_ql = simulate_step(
-            q_ql, state_ql, arrivals[t], task_next, comm_next,
+        state_ql, pending_buffer_ql, info_ql = simulate_step(
+            q_ql, state_ql, pending_buffer_ql, arrivals[t], task_next, comm_next,
             n1_served_rates[t], n2_served_rates[t]
         )
         
@@ -190,15 +217,10 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         info_ql = history_ql[i]
         
         comm_names = ["Poor", "Normal", "Good"]
-        action_names = ["Local Process", "Offload N1", "Offload N2", "Drop"]
+        action_names = ["Local Process", "Offload N1", "Offload N2", "Pending"]
         
-        # Compute cumulative drops up to frame i
-        cum_drops_dp = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_dp[:i+1])
-        cum_drops_sarsa = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_sarsa[:i+1])
-        cum_drops_ql = sum((1 if h['intentional_drop'] or h['overflow_drop'] else 0) + h['bg_drops'] for h in history_ql[:i+1])
-
         # Helper to draw queue tables for a single subplot
-        def draw_queues(ax, info, title, cum_drops):
+        def draw_queues(ax, info, title):
             # Title
             ax.text(0, 4.4, title, color='#f8fafc', fontsize=14, fontweight='bold')
             
@@ -215,7 +237,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
             empty_color = '#475569'         # Slate gray for empty
             
             # Local Queue (Capacity 5)
-            ax.text(0, 2.6, f"Local Queue (Capacity: 5) | Drops: {cum_drops}", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 2.6, f"Local Queue (Capacity: 5) | Pending Buffer: {info['pending_buffer_size']}", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(5):
                 is_filled = idx < info['q_l_act']
                 color = local_filled_color if is_filled else empty_color
@@ -225,7 +247,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                     ax.text(idx * 1.2 + 0.35, 2.12, "T", color='#ffffff', fontsize=9, fontweight='bold')
                     
             # Neighbor 1 Queue (Capacity 10)
-            ax.text(0, 1.4, "Neighbor 1 Queue (Capacity: 10) | Drops: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 1.4, "Neighbor 1 Queue (Capacity: 10) | Pending Buffer: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(10):
                 is_filled = idx < info['q_n1_act']
                 color = n1_filled_color if is_filled else empty_color
@@ -235,7 +257,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                     ax.text(idx * 1.0 + 0.25, 0.92, "T", color='#ffffff', fontsize=8, fontweight='semibold')
                     
             # Neighbor 2 Queue (Capacity 10)
-            ax.text(0, 0.2, "Neighbor 2 Queue (Capacity: 10) | Drops: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
+            ax.text(0, 0.2, "Neighbor 2 Queue (Capacity: 10) | Pending Buffer: 0", color='#cbd5e1', fontsize=10, fontweight='bold')
             for idx in range(10):
                 is_filled = idx < info['q_n2_act']
                 color = n2_filled_color if is_filled else empty_color
@@ -244,30 +266,30 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                 if is_filled:
                     ax.text(idx * 1.0 + 0.25, -0.28, "T", color='#ffffff', fontsize=8, fontweight='semibold')
                     
-            # Drop indicators (Red highlighting)
-            drop_occurred = info['intentional_drop'] or info['overflow_drop'] or (info['bg_drops'] > 0)
-            if drop_occurred:
-                drop_type = "Intentional Drop" if info['intentional_drop'] else "Overflow Drop"
-                if info['bg_drops'] > 0:
-                    drop_type += f" (+{info['bg_drops']} BG)"
+            # Pending indicators (Red highlighting for pending events)
+            pending_occurred = info['intentional_pending'] or info['overflow_pending'] or (info['bg_pending'] > 0)
+            if pending_occurred:
+                pending_type = "Intentional Pend" if info['intentional_pending'] else "Overflow Pend"
+                if info['bg_pending'] > 0:
+                    pending_type += f" (+{info['bg_pending']} BG)"
                 
                 # Draw red banner at the top right
                 rect = patches.Rectangle((7.5, 3.8), 3.5, 0.5, facecolor='#ef4444', edgecolor='#f87171', alpha=0.95)
                 ax.add_patch(rect)
-                ax.text(7.6, 3.95, f"DROP: {drop_type}", color='#ffffff', fontsize=7.5, fontweight='bold')
+                ax.text(7.6, 3.95, f"PEND: {pending_type}", color='#ffffff', fontsize=7.5, fontweight='bold')
                 
-                # Highlight local queue border in red if local drop occurred
-                if info['overflow_drop'] or info['bg_drops'] > 0:
+                # Highlight local queue border in red if local pending occurred
+                if info['overflow_pending'] or info['bg_pending'] > 0:
                     rect_border = patches.Rectangle((-0.1, 1.9), 6.2, 0.65, linewidth=2, edgecolor='#ef4444', facecolor='none')
                     ax.add_patch(rect_border)
                     
         # Draw all three subplots
-        draw_queues(ax1, info_dp, "DP Optimal Policy", cum_drops_dp)
-        draw_queues(ax2, info_sarsa, "Expected SARSA Policy", cum_drops_sarsa)
-        draw_queues(ax3, info_ql, "Q-Learning Policy", cum_drops_ql)
+        draw_queues(ax1, info_dp, "DP Optimal Policy")
+        draw_queues(ax2, info_sarsa, "Expected SARSA Policy")
+        draw_queues(ax3, info_ql, "Q-Learning Policy")
         
         # Global title showing progress
-        reward_title = "QoS-Aware Improved Reward" if reward_type == "improved" else "Standard Reward"
+        reward_title = "Cliff Penalty Reward" if reward_type == "cliff" else "QoS-Aware Standard Reward"
         fig.suptitle(
             f"MDP Queue Offloading: Policy Comparison (Step {i+1}/{steps})\n"
             f"Lambda = {lambda_val} | Reward Model: {reward_title}",
@@ -296,34 +318,19 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     return True
 
 if __name__ == "__main__":
-    # Generate GIFs for Improved Reward setting (optimized QoS)
-    generate_comparison_animation(
-        lambda_val=1.5, 
-        episodes=20000, 
-        reward_type="improved", 
-        out_filename="policy_comparison_L1.5_improved.gif"
-    )
-    
-    generate_comparison_animation(
-        lambda_val=3.0, 
-        episodes=20000, 
-        reward_type="improved", 
-        out_filename="policy_comparison_L3.0_improved.gif"
-    )
-    
-    # Generate GIFs for Standard Reward setting (baseline)
-    generate_comparison_animation(
-        lambda_val=1.5, 
-        episodes=30000, 
-        reward_type="standard", 
-        out_filename="policy_comparison_L1.5_standard.gif"
-    )
-    
-    generate_comparison_animation(
-        lambda_val=3.0, 
-        episodes=30000, 
-        reward_type="standard", 
-        out_filename="policy_comparison_L3.0_standard.gif"
-    )
+    for lv in [0.5, 1.0, 1.5]:
+        generate_comparison_animation(
+            lambda_val=lv, 
+            episodes=20000, 
+            reward_type="standard", 
+            out_filename=f"policy_comparison_L{lv}_standard.gif"
+        )
+        
+        generate_comparison_animation(
+            lambda_val=lv, 
+            episodes=20000, 
+            reward_type="cliff", 
+            out_filename=f"policy_comparison_L{lv}_cliff.gif"
+        )
     
     print("\nAll policy comparison GIFs generated successfully.")

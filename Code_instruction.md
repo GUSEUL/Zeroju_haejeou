@@ -12,11 +12,11 @@
         - **Comm_state (3)**: 통신 및 리소스 종합 상태 (0:불량, 1:보통, 2:좋음)
         - **LocalQ (5)**: 로컬 큐 용량 (0~4)
         - **N1_Q, N2_Q (11)**: 이웃 노드 1, 2의 각각의 큐 용량 (0~10)
-    - **액션 공간(Action Space)**: `0: Local`, `1: Neighbor 1`, `2: Neighbor 2`, `3: Intentional Drop`
-    - **보상 함수 (Reward Function)**: $R = -(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{drop})$
+    - **액션 공간(Action Space)**: `0: Local`, `1: Neighbor 1`, `2: Neighbor 2`, `3: Intentional Pending`
+    - **보상 함수 (Reward Function)**: $R = -(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{pending})$
         - $Cost_{delay\_energy} = w_{task} \cdot w \cdot NormDelay + (1-w) \cdot NormEnergy$
         - $Penalty_{queue} = \beta \cdot (Queue/MaxQueue)^2$
-        - $Penalty_{drop} = \gamma$ (태스크 드랍 시)
+        - $Penalty_{pending} = \gamma$ (태스크 pending 시)
         - *특징: 모든 지표를 정규화하여 학습 안정성을 높이고, 지연 시간과 에너지 간의 Trade-off(w)를 조절함.*
 
 ### 🔵 `build_mdp_model.py`

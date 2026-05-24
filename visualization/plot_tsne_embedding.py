@@ -126,7 +126,7 @@ def main():
             mpatches.Patch(color='#3b82f6', label='Action 0: Local Processing'),
             mpatches.Patch(color='#10b981', label='Action 1: Offload to N1'),
             mpatches.Patch(color='#84cc16', label='Action 2: Offload to N2'),
-            mpatches.Patch(color='#ef4444', label='Action 3: Drop Task')
+            mpatches.Patch(color='#ef4444', label='Action 3: Pending Task')
         ]
         plt.legend(handles=patches, loc='best', fontsize=10)
         plt.grid(True, linestyle='--', alpha=0.3)

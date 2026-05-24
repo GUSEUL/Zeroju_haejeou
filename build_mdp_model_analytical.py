@@ -71,7 +71,7 @@ def build_model_analytical(lambda_val=1.5, reward_type="standard"):
             q_l_act = q_l
             q_n1_act = q_n1
             q_n2_act = q_n2
-            is_dropped = False
+            is_pending = False
             
             delay_trans, delay_comp = 0.0, 0.0
             energy_consumed = 0.0
@@ -93,46 +93,53 @@ def build_model_analytical(lambda_val=1.5, reward_type="standard"):
                 energy_consumed = energy_costs[comm] * 0.6
                 delay_comp = (q_n2 + 1) / 8.0 + 0.05
                 q_n2_act += 1
-            elif a == 3: # Drop
-                is_dropped = True
+            elif a == 3: # Pending
+                is_pending = True
                 
             if q_l_act >= 5:
-                is_dropped = True
+                is_pending = True
                 q_l_act = 4
                 
-            # Expected background drops calculation
+            if q_n1_act >= 11:
+                is_pending = True
+                q_n1_act = 10
+                
+            if q_n2_act >= 11:
+                is_pending = True
+                q_n2_act = 10
+                
+            # Expected background pending calculation
             q_served = max(0, q_l_act - service_rates[comm])
-            exp_bg_drops = 0.0
+            exp_bg_pending = 0.0
             for arr in range(100):
                 p_a = poisson.pmf(arr, lambda_val)
                 if q_served + arr > 4:
-                    exp_bg_drops += p_a * (q_served + arr - 4)
+                    exp_bg_pending += p_a * (q_served + arr - 4)
 
             # Reward
-            total_delay = delay_trans + delay_comp
-            w_task = 2.0 if task == 0 else 0.5
+            w_task = 2.5 if task == 0 else 0.5
             
             norm_delay = np.clip(total_delay / max_delay, 0.0, 1.0)
             norm_energy = np.clip(energy_consumed / max_energy, 0.0, 1.0)
             cost_de = w_task * w * norm_delay + (1.0 - w) * norm_energy
             
+            beta_task = 8.0 if task == 0 else 3.0
+            beta_neighbor_task = 6.0 if task == 0 else 3.0
+            
             penalty_neighbor = 0.0
             if a == 1:
-                penalty_neighbor = beta_neighbor * ((q_n1_act / 10.0) ** 2)
+                penalty_neighbor = beta_neighbor_task * ((q_n1_act / 10.0) ** 2)
             elif a == 2:
-                penalty_neighbor = beta_neighbor * ((q_n2_act / 10.0) ** 2)
+                penalty_neighbor = beta_neighbor_task * ((q_n2_act / 10.0) ** 2)
 
-            if reward_type == "sparse":
-                # Sparse with mild regularization
-                reward = -100.0 if is_dropped else (-0.1 - 0.01 * cost_de)
-                reward -= 100.0 * exp_bg_drops
-            elif reward_type == "cliff":
-                penalty_drop = 1000.0 if is_dropped else 0.0
-                reward = -(cost_de + penalty_drop + penalty_neighbor + 1000.0 * exp_bg_drops)
-            else: # standard
-                penalty_queue = beta * ((q_l_act / max_local_q) ** 2)
-                penalty_drop = gamma if is_dropped else 0.0
-                reward = - (cost_de + penalty_queue + penalty_drop + penalty_neighbor + gamma * exp_bg_drops)
+            if reward_type == "cliff":
+                gamma_task = 1000.0
+            else: # "standard"
+                gamma_task = 30.0 if task == 0 else 10.0
+
+            penalty_queue = beta_task * ((q_l_act / max_local_q) ** 2)
+            penalty_pending = gamma_task if is_pending else 0.0
+            reward = -(cost_de + penalty_queue + penalty_pending + penalty_neighbor + gamma_task * exp_bg_pending)
                 
             R[s_idx, a] = reward
             

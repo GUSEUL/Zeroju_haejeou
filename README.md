@@ -28,7 +28,7 @@
 
 |**구분**|**기존 설정**|**최종 개선 설정**|**현실적인 이유**|
 |---|---|---|---|
-|**로컬 큐 (Local Q)**|0 ~ 15 (16단계)|**0 ~ 4 (5단계)**|단말기는 자원이 부족하므로 즉시 드롭하거나 넘겨야 함|
+|**로컬 큐 (Local Q)**|0 ~ 15 (16단계)|**0 ~ 4 (5단계)**|단말기는 자원이 부족하므로 즉시 Pending 버퍼로 보내거나 넘겨야 함|
 |**이웃 큐 (Neighbor Q)**|0 ~ 5 (6단계)|**0 ~ 10 (11단계)**|에지 서버는 대용량 처리가 가능하므로 더 큰 버퍼 수용 가능|
 
 ---
@@ -39,7 +39,7 @@
 - `0`: 로컬 처리 (Local Processing)
 - `1`: 이웃 노드 1로 오프로딩 (Offloading to Neighbor 1)
 - `2`: 이웃 노드 2로 오프로딩 (Offloading to Neighbor 2)
-- `3`: 의도적 태스크 드롭 (Intentional Drop)
+- `3`: 의도적 태스크 Pending (Intentional Pending)
 
 ### ② 상태 공간 (State Space) 구성 변수
 1. `Task_Type` : 2단계 (0: URLLC, 1: eMBB)
@@ -57,14 +57,14 @@
 학습 안정성과 현실적인 제어 가능성을 극대화하기 위해 다음과 같은 보상 구조를 적용했습니다.
 
 ### ① 보상 함수 수식 (Reward Formula)
-$$R = -(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{drop})$$
+$$R = -(Cost_{delay\_energy} + Penalty_{queue} + Penalty_{pending})$$
 
 1. **통합 비용 ($Cost_{delay\_energy}$)**: $w_{task} \cdot w \cdot NormDelay + (1-w) \cdot NormEnergy$
    - $w$: 지연 시간과 에너지 간의 가중치 (0.6)
    - $NormDelay, NormEnergy$: 0.1~1.0 사이 정규화된 값
 2. **대기열 페널티 ($Penalty_{queue}$)**: $\beta \cdot (Queue/MaxQueue)^2$
    - 제곱 함수(Quadratic)를 사용하여 큐가 찰수록 점진적으로 페널티 강화
-3. **드랍 페널티 ($Penalty_{drop}$)**: $\gamma$ (태스크 드랍 시 고정 페널티 20.0 부여)
+3. **Pending 페널티 ($Penalty_{pending}$)**: $\gamma$ (태스크 pending 시 고정 페널티 20.0 부여)
 
 ### ② 개선점 및 특징
 - **Normalization**: 서로 다른 물리적 단위(초, 줄)를 정규화하여 특정 지표에 편향되지 않는 균형 잡힌 학습 유도.

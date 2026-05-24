@@ -118,7 +118,7 @@ def evaluate(env, pol, is_q=False, gamma=0.95):
             s, r, term, trunc, info = env.step(a)
             er += (gamma ** t) * r
             ee_episode += info.get("energy", 0)
-            ed += info.get("dropped_count", 1 if info.get("is_dropped", False) else 0)
+            ed += info.get("pending_count", info.get("dropped_count", 1 if info.get("is_pending", info.get("is_dropped", False)) else 0))
             t += 1
             if term or trunc: break
         rr.append(er); dd.append(ed); ee.append(ee_episode)
@@ -148,17 +148,17 @@ if __name__ == "__main__":
         for n, f in [("Policy Iteration", policy_iteration), ("Value Iteration", value_iteration)]:
             pol, _, t = f(P, R)
             r, d, e = evaluate(env, pol)
-            results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
+            results.append({"agent": n, "reward": r, "pending": d, "energy": e, "time": t})
             
     for n, f in [("SARSA", train_sarsa), ("Q-Learning", train_q_learning)]:
         q, logs, t = f(env, episodes=args.episodes, output_dir=res_dir)
         if len(logs) > 0:
             pd.DataFrame(logs).to_csv(os.path.join(res_dir, f"{n.lower()}_log.csv"), index=False)
         r, d, e = evaluate(env, q, is_q=True)
-        results.append({"agent": n, "reward": r, "drops": d, "energy": e, "time": t})
+        results.append({"agent": n, "reward": r, "pending": d, "energy": e, "time": t})
         
     r, d, e = evaluate(env, np.random.randint(0, 4, size=env.n_states))
-    results.append({"agent": "Random", "reward": r, "drops": d, "energy": e, "time": 0})
+    results.append({"agent": "Random", "reward": r, "pending": d, "energy": e, "time": 0})
     
     final_res_path = os.path.join(res_dir, "mdp_final_results.csv")
     pd.DataFrame(results).to_csv(final_res_path, index=False)

@@ -44,7 +44,7 @@ def print_distribution(policy, name):
     for a, c in zip(unique, counts):
         dist[a] = c
     total = len(policy)
-    return f"{name}: Loc={dist[0]} ({dist[0]/total*100:.1f}%), N1={dist[1]} ({dist[1]/total*100:.1f}%), N2={dist[2]} ({dist[2]/total*100:.1f}%), Drop={dist[3]} ({dist[3]/total*100:.1f}%)"
+    return f"{name}: Loc={dist[0]} ({dist[0]/total*100:.1f}%), N1={dist[1]} ({dist[1]/total*100:.1f}%), N2={dist[2]} ({dist[2]/total*100:.1f}%), Pend={dist[3]} ({dist[3]/total*100:.1f}%)"
 
 def main():
     import argparse
@@ -52,8 +52,8 @@ def main():
     parser.add_argument("--episodes", type=int, default=5000)
     args = parser.parse_args()
     
-    lambdas = [0.5, 1.5, 3.5]
-    reward_types = ["standard", "sparse", "cliff"]
+    lambdas = [0.5, 1.0, 1.5]
+    reward_types = ["standard", "cliff"]
     
     print("=" * 100)
     print(f"Results for Episodes = {args.episodes}")

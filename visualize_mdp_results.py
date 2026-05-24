@@ -30,7 +30,7 @@ def plot_performance_bars(lambda_val=None, reward_type="standard", res_dir="."):
     # Exclude Random agent for clearer comparison
     df = df[df["agent"] != "Random"]
     fig, ax = plt.subplots(1, 3, figsize=(18, 5))
-    for i, col in enumerate(["reward", "drops", "energy"]):
+    for i, col in enumerate(["reward", "pending", "energy"]):
         sns.barplot(data=df, x="agent", y=col, ax=ax[i], palette="muted", hue="agent", legend=False)
         ax[i].set_title(f"{col.capitalize()} ({reward_type})")
         ax[i].tick_params(axis="x", rotation=30)
@@ -56,7 +56,7 @@ def plot_policy_heatmap(policy, env, title, lambda_val=None, reward_type="standa
     
     plt.figure(figsize=(8, 6))
     sns.heatmap(heatmap_data, annot=True, cmap="YlGnBu", xticklabels=range(5), yticklabels=["Poor", "Normal", "Good"])
-    plt.title(f"Policy: {title} ({reward_type}) (0:Loc, 1:N1, 2:N2, 3:Drop)")
+    plt.title(f"Policy: {title} ({reward_type}) (0:Loc, 1:N1, 2:N2, 3:Pend)")
     plt.xlabel("Local Queue"); plt.ylabel("Comm State")
     plt.savefig(os.path.join(res_dir, f"mdp_heatmap_{title.lower().replace(' ', '_')}.png"))
     plt.close()
