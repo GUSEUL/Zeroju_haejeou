@@ -114,8 +114,8 @@ $$Cost_{delay\_energy} = w_{task} \cdot w_{delay} \cdot NormDelay + (1 - w_{dela
 
 #### 1) 로컬 대기열 패널티 ($Penalty_{queue}$)
 $$Penalty_{queue} = \beta_{local} \cdot \left(\frac{Q_{local}}{MaxLocalQueue}\right)^2 \quad (\text{단, } MaxLocalQueue = 5.0)$$
-* *Standard / Cliff 설정*: $\beta_{local} = 5.0$
-* *Sparse 설정*: $\beta_{local} = 0.0$ (큐 패널티 미적용)
+* *Standard 설정*: $\beta_{local} = 5.0$
+* *Cliff / Sparse 설정*: $\beta_{local} = 0.0$ (큐 패널티 미적용)
 * *Improved 설정 (개선안)*: URLLC ($Task=0$) 시 $\beta_{local} = 8.0$ (대기 절대 불가), eMBB ($Task=1$) 시 $\beta_{local} = 3.0$ (버퍼 대기 수용)
 
 #### 2) 이웃 대기열 패널티 ($Penalty_{neighbor}$)
@@ -192,4 +192,15 @@ $$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
   - 탐험 확률 $\epsilon$이 더 오랜 기간 동안 큰 값을 유지하도록 스케줄링을 완화하여, 에이전트가 벼랑 끝 상태나 드롭 상태의 정확한 패널티 기대치를 충분히 업데이트할 시간을 확보함.
 
 이 수정을 통해 Q-Learning과 Expected SARSA 에이전트는 미방문 상태에서의 오작동(비어 있는 대기열에서의 태스크 드롭)을 근절하고, 수학적 상한선인 DP(동적 계획법) 정책의 최적 보상 수준과 드롭 성능에 완벽하게 수렴하였습니다.
+
+---
+
+## 5. 코드베이스 검증 기록 (Verification Note)
+
+* **최근 검증 일시**: 2026-05-24
+* **검증 대상 코드**: `mdc_mdp_env.py` (비기능적 주석 수정 적용됨) 및 `build_mdp_model.py`
+* **검증 내용**: 
+  - 단말기 및 이웃 노드의 계산/전송 지연 산출식 분모와 가중치들의 정밀성 검증 완료.
+  - Cliff 설정의 보상 함수에서 로컬 큐 패널티($Penalty_{queue}$)가 수식에 실제로 합산되지 않음을 확인하여, 이에 맞게 공식 사양을 $\beta_{local} = 0.0$(큐 패널티 미적용)으로 정밀 수정하여 코드와 문서의 싱크를 100% 일치시킴.
+  - 비기능적 코드 변경(주석 추가 등)이 환경의 수치적 전이나 보상 계산 흐름에 영향을 주지 않음을 물리적 검증 완료함.
 
