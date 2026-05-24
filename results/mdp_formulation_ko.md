@@ -17,9 +17,9 @@ $$S = (Task\_Type, Comm\_State, Local\_Queue, Neighbor\_1\_Queue, Neighbor\_2\_Q
    - $Task = 1$: eMBB 태스크 (latency-tolerant, 대용량 전송 위주, 지연 허용)
 
 2. **통신 및 채널 품질 ($Comm\_State \in \{0, 1, 2\}$)**:
-   - $Comm = 0$: 불량 (Poor) - 낮은 전송 속도 및 로컬 연산 연계 지연 발생
+   - $Comm = 0$: 불량 (Poor) - 낮은 전송 속도로 인한 전송 지연 발생 (로컬 연산 속도는 독립적으로 고정됨)
    - $Comm = 1$: 보통 (Normal)
-   - $Comm = 2$: 좋음 (Good) - 높은 전송 속도 보장
+   - $Comm = 2$: 좋음 (Good) - 높은 전송 속도로 인한 빠른 전송 보장
 
 3. **로컬 대기열 크기 ($Local\_Queue \in \{0, 1, 2, 3, 4\}$)**:
    - 단말 장치의 물리 버퍼 용량은 $5$입니다. 큐 크기가 $5$ 이상 적재되면 강제로 드롭(Overflow Drop)이 발생하며, 인덱스로는 $0 \sim 4$로 표현됩니다.
@@ -93,8 +93,8 @@ $$Cost_{delay\_energy} = w_{task} \cdot w_{delay} \cdot NormDelay + (1 - w_{dela
 
 #### 1) 로컬 처리 ($a = 0$)
 * 전송 지연: $Delay_{trans} = 0.0$
-* 연산 지연: $Delay_{comp} = \frac{Q_{local} + 1}{2 \cdot ServiceRate(Comm)}$
-  - $ServiceRate(Comm) \in \{1, 2, 3\}$ (채널 상태 $Comm \in \{0, 1, 2\}$에 비례하여 처리 속도 상승)
+* 연산 지연: $Delay_{comp} = \frac{Q_{local} + 1}{2 \cdot ServiceRate} = \frac{Q_{local} + 1}{4.0}$
+  - $ServiceRate = 2$: 채널 상태 $Comm$과 무관하게 독립적으로 고정된 단말기 고유 연산 성능 스펙 (이웃 에지 노드의 연산 속도 분모인 $4.0$과 대칭적인 성능으로 매칭됨)
 * 에너지 소모: $EnergyConsumed = EnergyCost(Comm) \in \{0.8, 0.5, 0.3\}$
 
 #### 2) 이웃 노드 $i \in \{1, 2\}$ 오프로딩 ($a = 1, 2$)
@@ -141,6 +141,36 @@ $$Penalty_{neighbor} = \beta_{neighbor} \cdot \left(\frac{Q_{ni}}{10.0}\right)^2
 4. **Improved 설정 (개선안)**: **태스크 종류별 차등 가점**
    - URLLC ($Task=0$) 시: $\gamma_{task} = 30.0$ (지연 민감 태스크의 전송 유실 원천 방지)
    - eMBB ($Task=1$) 시: $\gamma_{task} = 10.0$ (혼잡 상황 시 효율적인 드롭 타협 가능)
+
+### 3.5 푸아송 분포(Poisson Distribution) 활용 및 에피소드(Episode) 생성 방식
+
+네트워크 환경의 무작위 태스크 도착 현상을 모사하고, 강화학습 에이전트가 넓은 상태 공간을 효율적으로 탐색할 수 있도록 다음과 같이 수식적·알고리즘적 설계를 적용하였습니다.
+
+#### 1) 푸아송 분포 (Poisson Distribution) 활용
+단위 시간당 도착하는 신규 태스크의 개수 $k$는 평균 도착률 $\lambda$를 따르는 푸아송 분포의 확률 질량 함수(PMF)에 의해 결정됩니다.
+$$P(X = k) = \frac{\lambda^k e^{-\lambda}}{k!}$$
+
+* **모델 해석(Model-based calculations - `build_mdp_model.py`)**:
+  - 상태 전이 확률 행렬 $P$를 수학적으로 생성하기 위해 푸아송 PMF를 사용합니다. 로컬 처리 이후 남은 큐 크기($Q_{served}$)와 신규 유입량($arr$)의 합이 다음 단계의 로컬 큐 크기 $Q_{next}$로 전이될 확률을 다음과 같이 계산합니다.
+    $$P(Q_{next} \mid Q_{served}, \lambda) = \sum_{arr} P(X = arr) \quad (\text{단, } Q_{next} = \min(4, Q_{served} + arr))$$
+  - 또한, 버퍼 한도(4)를 넘어서 발생하는 기대 백그라운드 오버플로우 드롭 수($\mathbb{E}[num\_bg\_drops]$)의 수학적 기댓값을 구하는 데 활용됩니다.
+    $$\mathbb{E}[num\_bg\_drops] = \sum_{arr \ge 5 - Q_{served}} P(X = arr) \cdot (Q_{served} + arr - 4)$$
+* **시뮬레이션 환경 (Model-free Environment - `mdc_mdp_env.py`)**:
+  - 실제 스텝마다 푸아송 분포로부터 도착 태스크 수를 난수 샘플링합니다. 연산 속도 향상을 위해 초기화 시점에 `np.random.poisson`을 사용하여 100,000개의 유입량 샘플을 버퍼로 사전 생성한 후 순환 참조하여 적용합니다.
+    $$arrival = \text{Poisson}(\lambda)$$
+
+#### 2) 에피소드 (Episode) 생성 및 진행 방식
+학습 및 평가 단계에서 에이전트의 상태 전이 경험을 생성하기 위해 에피소드를 다음과 같이 구성합니다.
+
+* **최대 스텝 수 (Max Steps)**: 에피소드당 최대 스텝 수는 **$1,000$ 스텝**으로 제한됩니다. 즉, $t=1,000$에 도달하면 `truncation = True`가 반환되어 에피소드가 강제로 종료됩니다.
+* **학습 시 - 무작위 시작 (Exploring Starts - `random_start=True`)**:
+  - 학습 시에는 에이전트가 상태 공간 전체를 고르게 방문할 수 있도록 매 에피소드 시작 시 상태 변수들을 무작위로 초기화합니다.
+    $$Q_{local} \sim \text{Uniform}(0, 4), \quad Q_{n1}, Q_{n2} \sim \text{Uniform}(0, 10), \quad Comm \sim \text{Uniform}(0, 2), \quad Task \sim \text{Uniform}(0, 1)$$
+  - 이를 통해 특정 안전한 상태에만 고착(Local Minima)되는 문제를 방지하고, 벼랑 끝 상태나 큐가 가득 찬 극한 상태에서의 복원 대책을 강건하게 학습합니다.
+* **평가 시 - 고정 시작 (`random_start=False`)**:
+  - 학습이 완료된 알고리즘의 절대 성능을 일관성 있게 검증하기 위해, 평가 모드에서는 항상 동일한 시작 상태에서 출발합니다.
+    $$S_{start} = [Task=0, Comm=1, Q_{local}=0, Q_{n1}=0, Q_{n2}=0]$$
+  - 즉, URLLC 태스크가 들어오고 채널 품질이 보통이며 모든 대기열이 비어있는 정형화된 상태에서 시뮬레이션을 개시하여 500회 평가 에피소드의 누적 보상 평균을 측정합니다.
 
 ---
 

@@ -17,7 +17,7 @@ class MDCMDPEnv(gym.Env):
         self.reward_type = reward_type
         
         # Performance parameters
-        self.service_rates = [1, 2, 3] # Local processing speed
+        self.service_rates = [2, 2, 2] # Local processing speed
         self.channel_factors = [1.5, 1.0, 0.5] # Transmission delay multiplier
         self.energy_costs = [0.8, 0.5, 0.3] # Energy per task
         
@@ -75,7 +75,7 @@ class MDCMDPEnv(gym.Env):
             chan_factor = self.channel_factors[comm]
             delay_trans = chan_factor * 1.0
             energy_consumed = self.energy_costs[comm] * 0.6
-            delay_comp = (self.neighbor_qs[idx] + 1) / 4.0 + 0.05
+            delay_comp = (self.neighbor_qs[idx] + 1) / 8.0 + 0.05
             self.neighbor_qs[idx] += 1
         elif action == 3: # Drop
             is_dropped = True

@@ -11,7 +11,7 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
     R = np.zeros((n_states, n_actions))
     print(f"Building Analytical MDP Model ({n_states} states) with Lambda={lambda_val}, Reward={reward_type}...")
     
-    service_rates = [1, 2, 3]
+    service_rates = [2, 2, 2]
     channel_factors = [1.5, 1.0, 0.5]
     energy_costs = [0.8, 0.5, 0.3]
     
@@ -85,13 +85,13 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
                 chan_factor = channel_factors[comm]
                 delay_trans = chan_factor * 1.0
                 energy_consumed = energy_costs[comm] * 0.6
-                delay_comp = (q_n1 + 1) / 4.0 + 0.05
+                delay_comp = (q_n1 + 1) / 8.0 + 0.05
                 q_n1_act += 1
             elif a == 2: # Offload to N2
                 chan_factor = channel_factors[comm]
                 delay_trans = chan_factor * 1.0
                 energy_consumed = energy_costs[comm] * 0.6
-                delay_comp = (q_n2 + 1) / 4.0 + 0.05
+                delay_comp = (q_n2 + 1) / 8.0 + 0.05
                 q_n2_act += 1
             elif a == 3: # Drop
                 is_dropped = True
