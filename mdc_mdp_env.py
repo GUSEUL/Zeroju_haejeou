@@ -149,10 +149,12 @@ class MDCMDPEnv(gym.Env):
         s_rate = self.service_rates[comm]
         self.local_q = max(0, self.local_q - s_rate)
         for i in range(2):
-            served = 1 if random.random() < 0.5 else 2
+            served = 1 if random.random() < 0.2 else 0
             new_q = self.neighbor_qs[i] - served
             if new_q < 0:
                 new_q = 0
+            elif new_q > 10:
+                new_q = 10
             self.neighbor_qs[i] = new_q
 
         next_task_type = 0 if random.random() < 0.5 else 1

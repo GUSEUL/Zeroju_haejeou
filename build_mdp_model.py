@@ -36,10 +36,10 @@ def build_model(env_class, lambda_val=1.5, reward_type="standard"):
     # neighbor queue after action can be up to 11
     trans_n = np.zeros((12, 11))
     for q_curr in range(12):
-        for s_n in [1, 2]:
+        for s_n, prob in zip([0, 1], [0.8, 0.2]):
             q_served = max(0, q_curr - s_n)
             q_next = min(10, q_served)
-            trans_n[q_curr, q_next] += 0.5
+            trans_n[q_curr, q_next] += prob
             
     # Transition probability for local queue
     # trans_l[q_after_action, comm, q_next]
