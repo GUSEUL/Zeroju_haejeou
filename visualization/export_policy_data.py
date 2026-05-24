@@ -58,8 +58,8 @@ def main():
             else:
                 print(f"DP Model not found: {model_path}")
                 
-            # Episode count selection: 5000 for improved, 30000 (args.episodes) for baseline
-            ep = 5000 if r == "improved" else args.episodes
+            # Episode count selection: 20000 for improved, 30000 (args.episodes) for baseline
+            ep = 20000 if r == "improved" else args.episodes
             
             # 2. Q-Learning
             ql_path = f"results/L_{l}_E_{ep}/{r}/q_table_ql.npy"

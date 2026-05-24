@@ -11,7 +11,7 @@ for l in lambdas:
     print("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
     
     for r in reward_types:
-        ep = 5000 if r == "improved" else 30000
+        ep = 20000 if r == "improved" else 30000
         csv_path = os.path.join(base_dir, f"L_{l}_E_{ep}", r, "mdp_final_results.csv")
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path)

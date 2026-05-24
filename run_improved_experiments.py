@@ -6,7 +6,7 @@ import os
 
 lambdas = [0.1, 0.5, 1.5, 3.0]
 reward_type = "improved"
-episodes = 5000
+episodes = 20000
 
 def run_scenario(lambda_val):
     start = time.time()

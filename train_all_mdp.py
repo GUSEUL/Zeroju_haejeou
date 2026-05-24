@@ -52,8 +52,8 @@ def train_q_learning(env, episodes=5000, gamma=0.95, output_dir="."):
         print(f" Loading checkpoint: {q_path}")
         return np.load(q_path), [], 0.0
     
-    q = np.zeros((env.n_states, env.action_space.n))
-    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.4))
+    q = np.full((env.n_states, env.action_space.n), -150.0)
+    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.6))
     logs = []
     start_time = time.time()
     for ep in range(episodes):
@@ -79,8 +79,8 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
         print(f" Loading checkpoint: {q_path}")
         return np.load(q_path), [], 0.0
 
-    q = np.zeros((env.n_states, env.action_space.n))
-    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.4))
+    q = np.full((env.n_states, env.action_space.n), -150.0)
+    alpha = 0.1; eps = 1.0; eps_min = 0.01; decay = np.exp(np.log(eps_min)/(episodes*0.6))
     logs = []
     start_time = time.time()
     for ep in range(episodes):
