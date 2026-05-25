@@ -242,13 +242,13 @@ def generate_animation(lambda_val, ep_cliff, ep_std, out_filename):
         fig.suptitle(f"MDP Queue Offloading Simulation (Step {i+1}/{steps})  |  Arrival Rate Lambda = {lambda_val}", color='#cbd5e1', fontsize=16, fontweight='bold', y=0.95)
  
     # Build and save animation
-    anim = animation.FuncAnimation(fig, draw_frame, frames=steps, interval=600)
+    anim = animation.FuncAnimation(fig, draw_frame, frames=steps, interval=125)
     
     gif_vis_path = os.path.join(vis_dir, out_filename)
     gif_res_path = os.path.join(res_dir, out_filename)
     gif_art_path = os.path.join(artifacts_dir, out_filename)
     
-    anim.save(gif_vis_path, writer='pillow', fps=1.5)
+    anim.save(gif_vis_path, writer='pillow', fps=8.0)
     shutil.copyfile(gif_vis_path, gif_res_path)
     shutil.copyfile(gif_vis_path, gif_art_path)
     

@@ -297,7 +297,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         )
 
     # Build and save animation
-    anim = animation.FuncAnimation(fig, draw_frame, frames=steps, interval=600)
+    anim = animation.FuncAnimation(fig, draw_frame, frames=steps, interval=125)
     
     gif_vis_path = os.path.join(vis_dir, out_filename)
     gif_res_path = os.path.join(res_dir, out_filename)
@@ -306,7 +306,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     
     # Save the file using pillow writer
     print(f"Saving animation to {gif_vis_path}...")
-    anim.save(gif_vis_path, writer='pillow', fps=1.5)
+    anim.save(gif_vis_path, writer='pillow', fps=8.0)
     
     # Replicate file to output directories
     shutil.copyfile(gif_vis_path, gif_res_path)
