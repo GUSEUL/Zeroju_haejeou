@@ -62,22 +62,19 @@
                     <!-- Lambda (Traffic Load) -->
                     <div class="space-y-2">
                         <label class="text-sm font-medium text-slate-400">Traffic Load (λ)</label>
-                        <div class="grid grid-cols-4 gap-1.5 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
-                            <button onclick="setParam('lambda', 0.1)" id="btn-lambda-0.1" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">0.1</button>
+                        <div class="grid grid-cols-3 gap-1.5 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
                             <button onclick="setParam('lambda', 0.5)" id="btn-lambda-0.5" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">0.5</button>
+                            <button onclick="setParam('lambda', 1.0)" id="btn-lambda-1.0" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">1.0</button>
                             <button onclick="setParam('lambda', 1.5)" id="btn-lambda-1.5" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">1.5</button>
-                            <button onclick="setParam('lambda', 3.0)" id="btn-lambda-3.0" class="py-1.5 px-2 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">3.0</button>
                         </div>
                     </div>
                     
                     <!-- Reward Type -->
                     <div class="space-y-2">
                         <label class="text-sm font-medium text-slate-400">Reward Formulation</label>
-                        <div class="grid grid-cols-4 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
+                        <div class="grid grid-cols-2 gap-1 bg-slate-900/50 p-1 rounded-xl border border-slate-800">
                             <button onclick="setParam('reward', 'standard')" id="btn-reward-standard" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none bg-indigo-600 text-white">Standard</button>
-                            <button onclick="setParam('reward', 'sparse')" id="btn-reward-sparse" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Sparse</button>
                             <button onclick="setParam('reward', 'cliff')" id="btn-reward-cliff" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Cliff</button>
-                            <button onclick="setParam('reward', 'improved')" id="btn-reward-improved" class="py-1.5 px-1 text-[10px] font-semibold rounded-lg transition-all focus:outline-none text-slate-400 hover:text-slate-200">Improved</button>
                         </div>
                     </div>
 
@@ -371,14 +368,11 @@
                 }
                 return reason;
             } else if (action === 3) {
-                if (rewardType === 'sparse' || rewardType === 'cliff') {
-                    return "Pending 처리(대기)에 패널티가 부과되지만, 다른 모든 액션들의 지연시간 비용 합이 Pending 패널티보다 과도하게 커지는 임계점에 도달하여 대기 버퍼로 보냅니다.";
+                if (rewardType === 'cliff') {
+                    return "Cliff 환경에서는 Pending 처리(대기)에 매우 큰 패널티(γ=1000.0)가 부과됩니다. 그럼에도 불구하고 다른 모든 연산/전송 대기 비용의 합이 1000.0보다 커지는 극심한 혼잡 상태가 발생하여 어쩔 수 없이 Pending 처리를 수행합니다.";
                 }
-                if (rewardType === 'improved') {
-                    const penalty = task === 0 ? "30.0" : "10.0";
-                    return `QoS 최적화 환경에서 ${task === 0 ? "URLLC(민감)" : "eMBB(일반)"} 태스크에 대기열 혼잡에 따른 지연시간 폭증 위험이 존재하여, 패널티(γ=${penalty})를 지불하고 의도적으로 Pending 버퍼에 대기하도록 처리합니다.`;
-                }
-                return `로컬 큐(${local_q}/4)는 물론 양쪽 이웃 큐(qn1=${qn1}, qn2=${qn2})가 모두 극도로 혼잡(대기열 포화)합니다. 이 상황에서는 무리하게 태스크를 밀어넣어 지연시간을 폭증시키거나 로컬 버퍼를 오버플로우시키는 것보다 패널티(γ=5.0)를 내고 즉시 Pending 버퍼에 대기시킨 후 널널해지면 다시 가져오는 것이 합리적인 최선책입니다.`;
+                const penalty = task === 0 ? "30.0" : "10.0";
+                return `Standard 환경에서 ${task === 0 ? "URLLC(민감)" : "eMBB(일반)"} 태스크에 대기열 혼잡에 따른 지연시간 폭증 위험이 존재하여, 패널티(γ=${penalty})를 지불하고 의도적으로 Pending 버퍼에 대기하도록 처리합니다.`;
             }
             return "";
         }
