@@ -54,6 +54,7 @@ def simulate_step(policy_or_q, state, pending_buffer, arrival, task_type, comm_n
     q_n2_act = q_n2
     intentional_pending = (action == 3)
     overflow_pending = False
+    step_forced_pending = 0
     
     if action == 0:
         q_l_act += 1
@@ -67,18 +68,21 @@ def simulate_step(policy_or_q, state, pending_buffer, arrival, task_type, comm_n
     if q_l_act >= 5:
         overflow_pending = True
         overflow_count = q_l_act - 4
+        step_forced_pending += overflow_count
         pending_buffer += overflow_count
         q_l_act = 4
         
     if q_n1_act >= 11:
         overflow_pending = True
         overflow_count = q_n1_act - 10
+        step_forced_pending += overflow_count
         pending_buffer += overflow_count
         q_n1_act = 10
         
     if q_n2_act >= 11:
         overflow_pending = True
         overflow_count = q_n2_act - 10
+        step_forced_pending += overflow_count
         pending_buffer += overflow_count
         q_n2_act = 10
         
@@ -93,6 +97,7 @@ def simulate_step(policy_or_q, state, pending_buffer, arrival, task_type, comm_n
     num_bg_pending = max(0, q_l_served + arrival - 4)
     q_l_next = min(4, q_l_served + arrival)
     pending_buffer += num_bg_pending
+    step_forced_pending += num_bg_pending
     
     # Replenish local queue from the infinite pending buffer if space becomes available
     if q_l_next < 4 and pending_buffer > 0:
@@ -115,7 +120,9 @@ def simulate_step(policy_or_q, state, pending_buffer, arrival, task_type, comm_n
         'bg_pending': num_bg_pending,
         'arrival': arrival,
         'task_type': task,
-        'pending_buffer_size': pending_buffer
+        'pending_buffer_size': pending_buffer,
+        'step_intentional_pending': 1 if action == 3 else 0,
+        'step_forced_pending': step_forced_pending
     }
 
 def generate_comparison_animation(lambda_val, episodes, reward_type, out_filename):
@@ -174,6 +181,13 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
     history_sarsa = []
     history_ql = []
 
+    cum_intentional_dp = 0
+    cum_forced_dp = 0
+    cum_intentional_sarsa = 0
+    cum_forced_sarsa = 0
+    cum_intentional_ql = 0
+    cum_forced_ql = 0
+
     for t in range(steps):
         comm_next = comm_states[t+1] if t < steps - 1 else comm_states[-1]
         task_next = task_types[t+1] if t < steps - 1 else task_types[-1]
@@ -190,6 +204,20 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
             q_ql, state_ql, pending_buffer_ql, arrivals[t], task_next, comm_next,
             n1_served_rates[t], n2_served_rates[t]
         )
+        
+        cum_intentional_dp += info_dp['step_intentional_pending']
+        cum_forced_dp += info_dp['step_forced_pending']
+        cum_intentional_sarsa += info_sarsa['step_intentional_pending']
+        cum_forced_sarsa += info_sarsa['step_forced_pending']
+        cum_intentional_ql += info_ql['step_intentional_pending']
+        cum_forced_ql += info_ql['step_forced_pending']
+        
+        info_dp['cum_intentional'] = cum_intentional_dp
+        info_dp['cum_forced'] = cum_forced_dp
+        info_sarsa['cum_intentional'] = cum_intentional_sarsa
+        info_sarsa['cum_forced'] = cum_forced_sarsa
+        info_ql['cum_intentional'] = cum_intentional_ql
+        info_ql['cum_forced'] = cum_forced_ql
         
         history_dp.append(info_dp)
         history_sarsa.append(info_sarsa)
@@ -209,7 +237,7 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
         for ax in [ax1, ax2, ax3]:
             ax.set_facecolor('#1e293b')
             ax.set_xlim(-1, 12)
-            ax.set_ylim(-1, 5)
+            ax.set_ylim(-1.5, 5)
             ax.axis('off')
             
         info_dp = history_dp[i]
@@ -282,6 +310,9 @@ def generate_comparison_animation(lambda_val, episodes, reward_type, out_filenam
                 if info['overflow_pending'] or info['bg_pending'] > 0:
                     rect_border = patches.Rectangle((-0.1, 1.9), 6.2, 0.65, linewidth=2, edgecolor='#ef4444', facecolor='none')
                     ax.add_patch(rect_border)
+                    
+            # Draw cumulative statistics
+            ax.text(0, -1.1, f"Intentional Pend (Action 3): {info['cum_intentional']}  |  Forced Pend (Overflow): {info['cum_forced']}", color='#f87171', fontsize=9.0, fontweight='bold')
                     
         # Draw all three subplots
         draw_queues(ax1, info_dp, "DP Optimal Policy")
