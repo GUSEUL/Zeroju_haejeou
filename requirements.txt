@@ -1,0 +1,8 @@
+gymnasium
+numpy
+pandas
+matplotlib
+pillow
+scipy
+seaborn
+scikit-learn
