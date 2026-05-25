@@ -4,90 +4,7 @@
 
 ---
 
-## 1. 기본 실험 환경 및 시각화 (Agent 1)
-다양한 트래픽 부하($\lambda$) 및 보상 설정 하에서 학습을 수행하였습니다.
-- **트래픽 부하 ($\lambda$)**: `0.1` (낮음), `0.5` (보통), `1.5` (높음), `3.0` (포화)
-- **보상 설정**:
-  - `standard` (지연+에너지+대기열 패널티, 30,000 에피소드)
-  - `sparse` (드롭 시 -100 패널티, 30,000 에피소드)
-  - `cliff` (경계면 local_q=4에서 노이즈 및 드롭 시 -1000 패널티, 30,000 에피소드)
-  - `improved` (QoS 차등화 및 비관적 Q 초기화 적용, **20,000 에피소드**)
-- **제공된 산출물**:
-  - 학습된 각 정책(Policy) 데이터는 `visualization/policy_data.js` 및 `policy_data.json`으로 내보내져 [HTML 시각화 대시보드](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/visualization/policy_visualizer.html)에서 동적으로 탐색이 가능합니다.
-  - 고차원 상태 공간(3,630개 상태)의 정책 매핑 관계를 2차원으로 투영한 t-SNE 시각화 플롯이 생성되어 [visualization/tsne_plots/](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/visualization/tsne_plots/) 폴더에 통합 저장되었습니다.
-
----
-
-## 2. 기본 실험 결과 분석 및 성능 비교 (Agent 2)
-
-### A. 실험 결과 데이터 요약 (30,000 에피소드 및 20,000 에피소드 기준)
-
-| 트래픽 부하 ($\lambda$) | 보상 설정 | 알고리즘 | 기대 보상 (Expected Reward) | 에피소드당 평균 드롭 수 | 에피소드당 평균 에너지 소모 |
-| :--- | :--- | :--- | :---: | :---: | :---: |
-| **$\lambda = 0.1$** | Standard | Policy/Value Iteration | -7.53 | 0.00 | 396.73 |
-| | | Expected SARSA | -7.71 | 0.00 | 319.14 |
-| | | Q-Learning | -7.62 | 0.00 | 366.53 |
-| | Sparse | Policy/Value Iteration | -2.05 | 0.00 | 419.54 |
-| | | Expected SARSA | -2.06 | 0.00 | 408.05 |
-| | | Q-Learning | -2.05 | 0.00 | 419.38 |
-| | Cliff | Policy/Value Iteration | -5.21 | 0.00 | 521.23 |
-| | | Expected SARSA | -5.40 | 0.00 | 483.11 |
-| | | Q-Learning | -5.24 | 0.00 | 471.02 |
-| | **Improved (20k)**| Policy/Value Iteration | -8.43 | 0.00 | 366.53 |
-| | | Expected SARSA | -8.44 | 0.00 | 319.14 |
-| | | Q-Learning | -8.54 | 0.00 | 396.71 |
-| **$\lambda = 0.5$** | Standard | Policy/Value Iteration | -9.29 | 0.92 | 363.84 |
-| | | Expected SARSA | -9.38 | 0.92 | 344.72 |
-| | | Q-Learning | -9.76 | 0.92 | 356.51 |
-| | Sparse | Policy/Value Iteration | -2.05 | 0.24 | 396.83 |
-| | | Expected SARSA | -2.08 | 1.58 | 371.73 |
-| | | Q-Learning | -2.06 | 0.24 | 339.26 |
-| | Cliff | Policy/Value Iteration | -5.68 | 0.58 | 473.10 |
-| | | Expected SARSA | -6.77 | 0.58 | 413.24 |
-| | | Q-Learning | -6.45 | 0.58 | 364.56 |
-| | **Improved (20k)**| Policy/Value Iteration | -12.92 | 1.43 | 343.91 |
-| | | Expected SARSA | -13.00 | 1.43 | 362.52 |
-| | | Q-Learning | -13.44 | 1.43 | 348.44 |
-| **$\lambda = 1.5$** | Standard | Policy/Value Iteration | -70.23 | 169.99 | 326.32 |
-| | | Expected SARSA | -70.81 | 177.13 | 328.18 |
-| | | Q-Learning | -70.33 | 169.99 | 323.39 |
-| | Sparse | Policy/Value Iteration | -444.43 | 176.46 | 349.64 |
-| | | Expected SARSA | -479.34 | 192.39 | 348.43 |
-| | | Q-Learning | -479.34 | 192.39 | 343.52 |
-| | Cliff | Policy/Value Iteration | -2064.66 | 175.28 | 380.37 |
-| | | Expected SARSA | -2065.62 | 175.28 | 337.95 |
-| | | Q-Learning | -2065.26 | 175.28 | 334.67 |
-| | **Improved (20k)**| Policy/Value Iteration | -106.76 | 177.56 | 321.54 |
-| | | Expected SARSA | -108.65 | 177.56 | 335.93 |
-| | | Q-Learning | -110.32 | 185.00 | 362.90 |
-| **$\lambda = 3.0$** | Standard | Policy/Value Iteration | -138.40 | 1170.85 | 319.68 |
-| | | Expected SARSA | -138.45 | 1170.85 | 320.11 |
-| | | Q-Learning | -138.43 | 1170.85 | 320.60 |
-| | Sparse | Policy/Value Iteration | -2439.46 | 1262.88 | 326.02 |
-| | | Expected SARSA | -2450.73 | 1273.63 | 322.51 |
-| | | Q-Learning | -2439.46 | 1262.88 | 320.84 |
-| | Cliff | Policy/Value Iteration | -27586.67 | 1226.32 | 332.50 |
-| | | Expected SARSA | -27587.03 | 1226.32 | 320.84 |
-| | | Q-Learning | -28674.20 | 1273.81 | 321.31 |
-| | **Improved (20k)**| Policy/Value Iteration | -505.60 | 1146.97 | 319.17 |
-| | | Expected SARSA | -530.62 | 1296.33 | 369.29 |
-| | | Q-Learning | -506.66 | 1146.97 | 328.55 |
-
-### B. 핵심 분석 결과 및 해석
-
-1. **Expected SARSA vs. Q-Learning**:
-   - **온폴리시(On-policy) 위험 회피 vs. 오프폴리시(Off-policy) 낙관주의**: 
-     - 변동성(노이즈)이 추가된 **Cliff** 설정에서 포화 상태($\lambda = 3.0$)일 때, **Expected SARSA**는 기대 보상 **-27,587.03 (1,226.32 드롭)**을 기록하며, **Q-Learning**의 **-28,674.20 (1,273.81 드롭)**보다 우수한 성과를 보였습니다. Q-Learning은 target을 갱신할 때 최대값($\max$)을 취하여 경계면의 노이즈를 과대평가하기 쉽고, 탐험 중 실수를 예측하지 못해 벼랑 아래로 떨어집니다. Expected SARSA는 확률적 탐험 행동의 가치까지 가중 평균하므로 보수적이고 안전한 정책을 학습합니다.
-   - **희소 보상(Sparse Reward)에서의 탐험 희석**:
-     - **Sparse** 설정($\lambda=0.5$)에서는 반대로 **Q-Learning (0.24 드롭)**이 **Expected SARSA (1.58 드롭)**보다 훨씬 우수합니다. SARSA는 확률적 탐험 행동의 감점 가치까지 전파하여 타겟 값을 왜곡(희석)시키는 반면, Q-Learning은 순수 탐욕 정책만을 평가하므로 명확하게 수렴합니다.
-
-2. **기존 보상 함수의 한계점**:
-   - **성급한 드롭 (Standard)**: 드롭 고정 패널티가 너무 낮아($\gamma = 5.0$), 중부하 상태($\lambda = 0.5$)에서 물리적으로 충분히 처리할 수 있는 태스크도 대기열 패널티를 우려하여 쉽게 드롭(평균 0.92 드롭)해 버립니다.
-   - **QoS 인지력 부재**: URLLC(지연 및 드롭에 매우 민감) 태스크와 eMBB(지연 허용 가능) 태스크가 물리적 가중치와 드롭 패널티를 동일하게 사용하여, 자원 배분의 우선순위 제어가 불가능합니다.
-
----
-
-## 3. 개선된 보상 함수 설계 및 비관적 Q 초기화 검증 (Agent 3)
+## 1. 개선된 보상 함수 설계 및 비관적 Q 초기화 검증 (Agent 3)
 
 태스크 타입($0$: URLLC, $1$: eMBB)에 따라 보상 하이퍼파라미터를 동적으로 다르게 적용하는 `"improved"` 보상 타입을 도입하고, 학습 불안정성을 해결하기 위해 **비관적 Q 초기화(Pessimistic Initialization)**와 **탐험 스케줄러 완화**를 진행하였습니다.
 
@@ -103,7 +20,9 @@
   - 개선안에서는 URLLC 태스크에 대해 매우 엄격한 대기열 패널티($\beta_{local}=8.0$)와 무거운 드롭 패널티($\gamma_{task}=30.0$)를 동시에 부과하였습니다. 
   - 이에 따라 에이전트는 무작위로 축적되는 대기열 속에서 URLLC 태스크가 오랜 타임스텝 동안 큐에 대기하여 극심한 큐 누적 패널티를 받기 전에, 비어 있는 이웃 에지 노드로 빠르게 오프로딩하거나 상황에 따라 즉시 드롭 처리를 단행함으로써 **QoS 제약 조건을 충족하며 전체 성능을 최적화**하는 정책을 정확하게 수집 및 학습하였습니다.
 
-## 4. 100,000 에피소드 대규모 학습 및 최적화 결과 분석 (Standard vs. Cliff, 100k Episodes)
+---
+
+## 2. 100,000 에피소드 대규모 학습 및 최적화 결과 분석 (Standard vs. Cliff, 100k Episodes)
 
 학습의 완전한 수렴을 보장하기 위해 에피소드를 **100,000회**로 연장하고, $\lambda \in [0.5, 1.0, 1.5]$의 3가지 부하 수준 및 `standard`(QoS 가중 패널티), `cliff`(-1000.0 고강도 패널티) 보상 설정에 대하여 최적화 실험을 진행하였습니다.
 
@@ -153,9 +72,21 @@
    - 과부하 상태($\lambda = 1.5$)에서 Cliff 리워드의 경우, **Expected SARSA**는 기대 보상 **-150.97 (대기 762.69회)**을 달성하여 최적 선에 근사한 반면, **Q-Learning**은 기대 보상 **-298.35 (대기 764.95회)**로 수렴 성능이 비교적 뒤처졌습니다.
    - 이는 Cliff 환경 특유의 경계면 확률적 노이즈가 작용할 때, Q-Learning은 탐욕적 최대값($\max$) 갱신 방식으로 인해 패널티를 과소/과대평가하여 편향이 누적되는 반면, Expected SARSA는 확률적 탐험 행동들의 가치 기댓값을 전파하므로 정책 갱신 과정이 훨씬 안정적이고 보수적으로 수렴하기 때문입니다.
 
+### C. 이전 실험(30,000 및 20,000 에피소드) 핵심 분석 결과 및 해석
+
+1. **Expected SARSA vs. Q-Learning**:
+   - **온폴리시(On-policy) 위험 회피 vs. 오프폴리시(Off-policy) 낙관주의**: 
+     - 변동성(노이즈)이 추가된 **Cliff** 설정에서 포화 상태($\lambda = 3.0$)일 때, **Expected SARSA**는 기대 보상 **-27,587.03 (1,226.32 드롭)**을 기록하며, **Q-Learning**의 **-28,674.20 (1,273.81 드롭)**보다 우수한 성과를 보였습니다. Q-Learning은 target을 갱신할 때 최대값($\max$)을 취하여 경계면의 노이즈를 과대평가하기 쉽고, 탐험 중 실수를 예측하지 못해 벼랑 아래로 떨어집니다. Expected SARSA는 확률적 탐험 행동의 가치까지 가중 평균하므로 보수적이고 안전한 정책을 학습합니다.
+   - **희소 보상(Sparse Reward)에서의 탐험 희석**:
+     - **Sparse** 설정($\lambda=0.5$)에서는 반대로 **Q-Learning (0.24 드롭)**이 **Expected SARSA (1.58 드롭)**보다 훨씬 우수합니다. SARSA는 확률적 탐험 행동의 감점 가치까지 전파하여 타겟 값을 왜곡(희석)시키는 반면, Q-Learning은 순수 탐욕 정책만을 평가하므로 명확하게 수렴합니다.
+
+2. **기존 보상 함수의 한계점**:
+   - **성급한 드롭 (Standard)**: 드롭 고정 패널티가 너무 낮아($\gamma = 5.0$), 중부하 상태($\lambda = 0.5$)에서 물리적으로 충분히 처리할 수 있는 태스크도 대기열 패널티를 우려하여 쉽게 드롭(평균 0.92 드롭)해 버립니다.
+   - **QoS 인지력 부재**: URLLC(지연 및 드롭에 매우 민감) 태스크와 eMBB(지연 허용 가능) 태스크가 물리적 가중치와 드롭 패널티를 동일하게 사용하여, 자원 배분의 우선순위 제어가 불가능합니다.
+
 ---
 
-## 5. 프로젝트 파일 설명 및 구조 (Project File Descriptions)
+## 3. 프로젝트 파일 설명 및 구조 (Project File Descriptions)
 
 이 프로젝트는 MDP 정의, 강화학습 에이전트 학습, 시뮬레이션 및 다차원 시각화 도구들로 이루어져 있습니다. 주요 코드와 설정 파일의 역할은 다음과 같습니다.
 
@@ -174,7 +105,7 @@
 
 ---
 
-## 6. 파이프라인 실행 방법 및 실행 순서 가이드 (Pipeline Execution Guide)
+## 4. 파이프라인 실행 방법 및 실행 순서 가이드 (Pipeline Execution Guide)
 
 이 프로젝트의 모든 학습과 결과 시각화 분석은 통합 스크립트를 통해 일괄 실행하거나 개별 명령어로 진행할 수 있습니다.
 
