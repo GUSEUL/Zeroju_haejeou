@@ -186,15 +186,15 @@ $$P(\text{TaskType}_{\text{next}} = nt) = 0.5 \quad \text{for } nt \in \{0, 1\}$
 
 이후 로컬 서비스 처리율 $S_{\text{local}} = 2$만큼 태스크가 소모된 후($q_{\text{served}}$), 외부로부터 신규 태스크 유입량 $\text{arr} \sim \text{Poisson}(\lambda)$이 더해져 다음 상태의 대기열 크기 $q_{\text{local, next}}$가 결정되며 물리 한도인 $4$로 클리핑됩니다.
 $$q_{\text{served}} = \max(0, q_{\text{local, act}} - 2)$$
-$$q_{\text{local, next\_temp}} = \min(4, q_{\text{served}} + \text{arr})$$
+$$q_{\text{local, nextTemp}} = \min(4, q_{\text{served}} + \text{arr})$$
 
 또한, 태스크가 완전히 버려지지 않고 무한대 크기의 지연 대기 버퍼(Pending Buffer)에 보관되므로, 로컬 큐에 남은 여유 공간만큼 버퍼로부터 태스크를 복원(Replenish)하여 채워 넣습니다.
-$$q_{\text{local, next}} = q_{\text{local, next\_temp}} + \min(4 - q_{\text{local, next\_temp}}, \text{pending\_buffer\_size})$$
-$$\text{pending\_buffer\_size}_{\text{next}} = \text{pending\_buffer\_size} - \min(4 - q_{\text{local, next\_temp}}, \text{pending\_buffer\_size})$$
+$$q_{\text{local, next}} = q_{\text{local, nextTemp}} + \min(4 - q_{\text{local, nextTemp}}, \text{PendingBufferSize})$$
+$$\text{PendingBufferSize}_{\text{next}} = \text{PendingBufferSize} - \min(4 - q_{\text{local, nextTemp}}, \text{PendingBufferSize})$$
 
 푸아송 분포의 도착 확률 질량 함수를 $P(\text{arr} = k) = \frac{\lambda^k e^{-\lambda}}{k!}$라 할 때, 로컬 대기열의 구체적인 상태 전이 확률 식은 다음과 같습니다.
 * $q_{\text{local, next}} < 4$ 인 경우 ($q_{\text{local, next}} \ge q_{\text{served}}$):
-  $$P(q_{\text{local, next}} \mid q_{\text{local, act}}, \text{CommState}) = \begin{cases} \frac{\lambda^{(q_{\text{local, next}} - q_{\text{served}})} e^{-\lambda}}{(q_{\text{local, next}} - q_{\text{served}})!} & \text{if } q_{\text{local, next}} \ge q_{\text{served}} \\ 0 & \text{otherwise} \end{cases}$$
+  $$P(q_{\text{local, next}} \mid q_{\text{local, act}}, \text{CommState}) = \begin{cases} \frac{\lambda^{q_{\text{local, next}} - q_{\text{served}}} \cdot e^{-\lambda}}{(q_{\text{local, next}} - q_{\text{served}})!} & \text{if } q_{\text{local, next}} \ge q_{\text{served}} \\ 0 & \text{otherwise} \end{cases}$$
 * $q_{\text{local, next}} = 4$ 인 경우 (버퍼 포화):
   $$P(q_{\text{local, next}} = 4 \mid q_{\text{local, act}}, \text{CommState}) = \sum_{k = 4 - q_{\text{served}}}^{\infty} \frac{\lambda^k e^{-\lambda}}{k!} = 1 - \sum_{k=0}^{3 - q_{\text{served}}} \frac{\lambda^k e^{-\lambda}}{k!}$$
 

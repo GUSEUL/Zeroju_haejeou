@@ -103,113 +103,122 @@
   - 개선안에서는 URLLC 태스크에 대해 매우 엄격한 대기열 패널티($\beta_{local}=8.0$)와 무거운 드롭 패널티($\gamma_{task}=30.0$)를 동시에 부과하였습니다. 
   - 이에 따라 에이전트는 무작위로 축적되는 대기열 속에서 URLLC 태스크가 오랜 타임스텝 동안 큐에 대기하여 극심한 큐 누적 패널티를 받기 전에, 비어 있는 이웃 에지 노드로 빠르게 오프로딩하거나 상황에 따라 즉시 드롭 처리를 단행함으로써 **QoS 제약 조건을 충족하며 전체 성능을 최적화**하는 정책을 정확하게 수집 및 학습하였습니다.
 
+## 4. 프로젝트 파일 설명 및 구조 (Project File Descriptions)
+
+이 프로젝트는 MDP 정의, 강화학습 에이전트 학습, 시뮬레이션 및 다차원 시각화 도구들로 이루어져 있습니다. 주요 코드와 설정 파일의 역할은 다음과 같습니다.
+
+| 파일 이름 | 역할 및 핵심 기능 설명 |
+| :--- | :--- |
+| [mdc_mdp_env.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/mdc_mdp_env.py) | **Gymnasium 기반 환경 구현**: 오프로딩 MDP의 상태 전이(stochastic channel, Poisson arrival 등), 행동 및 보상 계산을 담당합니다. 특히 초과 태스크를 임시 보관하고 복원하는 **무한대 대기 버퍼(pending_buffer)** 시스템이 구현되어 있습니다. |
+| [build_mdp_model.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/build_mdp_model.py) | **분석적 MDP 모델 구축**: 이론적 상태 전이 확률 행렬 $P(S' \mid S, a)$와 기대 보상 벡터 $R(S, a)$를 수학 공식 기반으로 사전 생성하여 `models/` 폴더에 Pickle(`*.pkl`) 파일로 내보냅니다. |
+| [train_all_mdp.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/train_all_mdp.py) | **강화학습 에이전트 학습**: 지정된 에피소드(기본 100,000회) 동안 Q-러닝 및 Expected SARSA 에이전트를 학습시키고, 학습된 Q-테이블을 CSV 형태로 저장합니다. 동적 계획법(DP: Policy/Value Iteration)의 이론적 성능 한계 수치도 함께 평가합니다. |
+| [visualize_mdp_results.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/visualize_mdp_results.py) | **개별 시나리오 시각화**: 에이전트들의 누적 할인 보상 학습 곡선(`mdp_training_curves.png`), 성능 비교 바 차트(`mdp_performance_bars.png`), 각 차원별 정책 히트맵(`mdp_heatmap_*.png`)을 시나리오 폴더별로 자동 플롯합니다. |
+| [visualization/export_policy_data.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/visualization/export_policy_data.py) | **웹 대시보드 데이터 연동**: 학습된 모든 시나리오별 Q-테이블과 최적(DP) 정책 데이터를 단일 파일(`visualization/policy_data.js` 및 `policy_data.json`)로 취합하여 웹 비주얼라이저가 로드할 수 있도록 파싱합니다. |
+| [generate_queue_gif.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/generate_queue_gif.py) | **대기열 시뮬레이션 애니메이션 생성**: Cliff 정책과 Standard 정책을 바탕으로 큐의 크기 변화와 의도적/강제 대기(Pending) 횟수의 누적 변화를 직관적인 차트 애니메이션(8.0 FPS 고속 GIF)으로 렌더링합니다. |
+| [generate_policy_comparison_gif.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/generate_policy_comparison_gif.py) | **정책 행동 패턴 비교 애니메이션 생성**: DP Optimal vs Expected SARSA vs Q-Learning 세 가지 정책이 동일한 도착 상태 조건 하에서 어떻게 큐 분산 제어를 진행하는지 Side-by-Side 비교 애니메이션(GIF)으로 생성합니다. |
+| [aggregate_all_comparisons.py](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/aggregate_all_comparisons.py) | **통합 최종 결과 집계**: 전체 학습이 완료된 6개 시나리오 데이터를 스캔하여 전체 성능 지표(평균 기대 보상, 평균 대기(Pending) 건수, 에너지 소모량)를 마크다운 표 형태로 집계하여 화면에 출력합니다. |
+| [run_mdp_pipeline.sh](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/run_mdp_pipeline.sh) | **자동화 쉘 스크립트 (Bash)**: Git Bash, Linux, macOS 환경 등에서 전체 시나리오 학습 및 시각화 파이프라인(Step 1 ~ 7)을 한 번에 구동할 수 있도록 제어하는 자동화 스크립트입니다. |
+| [run_mdp_pipeline.ps1](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/run_mdp_pipeline.ps1) | **자동화 파워쉘 스크립트 (PowerShell)**: Windows 환경 사용자를 위해 제공되는 배치 파이프라인 제어 스크립트입니다. |
+
 ---
 
-## 4. 파이프라인 실행 방법 및 실행 순서 가이드 (Pipeline Execution Guide)
+## 5. 파이프라인 실행 방법 및 실행 순서 가이드 (Pipeline Execution Guide)
 
-본 프로젝트의 모델 빌드, 강화학습 에이전트 학습, 데이터 시각화 및 검증 분석을 위한 전체 파이프라인의 올바른 실행 순서와 상세 명령어 가이드라인입니다. 모든 학습 및 결과 분석은 $\lambda \in [0.5, 1.0, 1.5]$ 트래픽 부하와 `standard` 및 `cliff` 보상 설정에 대해 적용됩니다.
+이 프로젝트의 모든 학습과 결과 시각화 분석은 통합 스크립트를 통해 일괄 실행하거나 개별 명령어로 진행할 수 있습니다.
+
+### 방법 A. 쉘 스크립트(Bash)를 통한 자동 실행 (추천)
+**Git Bash** 또는 **WSL(Linux)** 터미널에서 전체 파이프라인을 실행합니다. 기본값으로 100,000 에피소드와 6개 주요 시나리오($\lambda \in [0.5, 1.0, 1.5]$, 리워드 `standard` 및 `cliff`)에 대해 학습 및 시각화(GIF 포함)가 순차 실행됩니다.
+
+1. **기본값으로 전체 파이프라인 실행**:
+   ```bash
+   bash run_mdp_pipeline.sh
+   ```
+   *(또는 스크립트에 실행 권한을 부여한 뒤 `./run_mdp_pipeline.sh`로 실행 가능)*
+
+2. **특정 파라미터로 커스텀 파이프라인 실행**:
+   * `-l`: 테스트할 $\lambda$ 목록 (공백으로 구분)
+   * `-e`: 에피소드 수
+   * `-r`: 적용할 보상 형태 (공백으로 구분)
+   ```bash
+   # 예: 0.5 및 1.5 람다에 대해 5,000 에피소드만 빠르게 학습
+   ./run_mdp_pipeline.sh -l "0.5 1.5" -e 5000 -r "standard cliff"
+   ```
 
 ---
 
-### [Step 1] 분석적 MDP 모델 구축 (Transition & Reward Pickle 생성)
-가치 반복(Value Iteration) 및 정책 반복(Policy Iteration)의 상태 전이 확률 행렬($P$)과 보상 행렬($R$)을 수학적으로 사전 빌드합니다.
+### 방법 B. PowerShell을 통한 자동 실행 (Windows)
+Windows PowerShell 콘솔 환경에서 실행하기 위한 파이프라인 구동 스크립트입니다.
 
-- **실행 스크립트**: `build_mdp_model.py`
-- **주요 인수**: `--lambda_val` (도착률), `--reward_type` (보상 형태)
-- **PowerShell 일괄 실행 스크립트**:
+* **기본 파이프라인 실행**:
   ```powershell
-  foreach ($l in @(0.5, 1.0, 1.5)) {
-      foreach ($r in @("standard", "cliff")) {
-          python build_mdp_model.py --lambda_val $l --reward_type $r
-      }
-  }
+  # 기본 파라미터 (Lambda = 1.5, Episodes = 10000) 기준으로 실행
+  ./run_mdp_pipeline.ps1 -Lambda 1.5 -Episodes 100000
   ```
-  *(빌드 결과물은 `models/mdp_model_{reward_type}_L{lambda}.pkl` 경로에 저장됩니다.)*
 
 ---
 
-### [Step 2] 강화학습 에이전트 학습 및 평가
-Q-Learning 및 Expected SARSA 에이전트를 지정된 에피소드 동안 학습시키고 수렴 로그 및 DP와의 성능 평가 메트릭을 추출합니다.
+### 방법 C. 단계별 수동 실행 (Step-by-Step Manual Execution)
+원하는 단계만 직접 세부 옵션을 설정하여 실행할 수 있는 명령어 구성입니다. 모든 명령어는 프로젝트 루트 디렉토리에서 실행합니다.
 
-- **실행 스크립트**: `train_all_mdp.py`
-- **주요 인수**: `--lambda_val`, `--reward_type`, `--episodes` (100,000 에피소드 권장)
-- **PowerShell 병렬 실행 스크립트 (멀티코어 활용)**:
-  ```powershell
-  # 6개 시나리오를 동시에 백그라운드 프로세스로 구동
-  $p1 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 0.5 --episodes 100000 --reward_type standard" -NoNewWindow -PassThru
-  $p2 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 0.5 --episodes 100000 --reward_type cliff" -NoNewWindow -PassThru
-  $p3 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 1.0 --episodes 100000 --reward_type standard" -NoNewWindow -PassThru
-  $p4 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 1.0 --episodes 100000 --reward_type cliff" -NoNewWindow -PassThru
-  $p5 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 1.5 --episodes 100000 --reward_type standard" -NoNewWindow -PassThru
-  $p6 = Start-Process python -ArgumentList "-u train_all_mdp.py --lambda_val 1.5 --episodes 100000 --reward_type cliff" -NoNewWindow -PassThru
-  Wait-Process -Id $p1.Id, $p2.Id, $p3.Id, $p4.Id, $p5.Id, $p6.Id
-  ```
-  *(학습 결과 및 체크포인트는 `results/L_{lambda}_E_{episodes}/{reward_type}/` 내에 Q-table CSV 및 평가 CSV로 저장됩니다.)*
+#### [Step 1] MDP 전이 모델 구축 (Pickle 파일 생성)
+강화학습 평가의 기준이 되는 동적 계획법(DP) 수렴을 위해 이론적 모델을 구축합니다.
+```bash
+python build_mdp_model.py --lambda_val=0.5 --reward_type=standard
+python build_mdp_model.py --lambda_val=0.5 --reward_type=cliff
+python build_mdp_model.py --lambda_val=1.0 --reward_type=standard
+python build_mdp_model.py --lambda_val=1.0 --reward_type=cliff
+python build_mdp_model.py --lambda_val=1.5 --reward_type=standard
+python build_mdp_model.py --lambda_val=1.5 --reward_type=cliff
+```
+*(결과 파일: `models/mdp_model_{reward_type}_L{lambda}.pkl`)*
 
----
+#### [Step 2] Q-Learning / Expected SARSA 학습 및 성능 평가
+각 시나리오별 강화학습 에이전트를 지정된 에피소드 동안 학습시킵니다.
+```bash
+# 6개 시나리오 순차 학습 (각 100,000 에피소드)
+python train_all_mdp.py --lambda_val=0.5 --episodes=100000 --reward_type=standard
+python train_all_mdp.py --lambda_val=0.5 --episodes=100000 --reward_type=cliff
+python train_all_mdp.py --lambda_val=1.0 --episodes=100000 --reward_type=standard
+python train_all_mdp.py --lambda_val=1.0 --episodes=100000 --reward_type=cliff
+python train_all_mdp.py --lambda_val=1.5 --episodes=100000 --reward_type=standard
+python train_all_mdp.py --lambda_val=1.5 --episodes=100000 --reward_type=cliff
+```
+*(결과 파일: `results/L_{lambda}_E_{episodes}/{reward_type}/q_table_ql.csv` 및 `q_table_sarsa.csv`)*
 
-### [Step 3] 개별 시나리오 플롯 및 수렴 곡선 생성
-각 시나리오별로 에이전트들의 학습 수렴 곡선(Rolling Reward) 및 성능 비교 바 차트, 그리고 정책 히트맵 이미지를 시각화합니다.
+#### [Step 3] 개별 시나리오 수렴도 곡선 및 정책 히트맵 이미지 플롯
+에이전트별 성능 도출 결과를 시각화합니다.
+```bash
+# 시나리오별 개별 시각화 이미지 생성
+python visualize_mdp_results.py --lambda_val=0.5 --episodes=100000 --reward_type=standard
+python visualize_mdp_results.py --lambda_val=0.5 --episodes=100000 --reward_type=cliff
+# (나머지 시나리오도 동일 인수 구조로 실행)
+```
+*(결과 파일: 각 폴더 내 `mdp_training_curves.png`, `mdp_performance_bars.png`, `mdp_heatmap_*.png`)*
 
-- **실행 스크립트**: `visualize_mdp_results.py`
-- **주요 인수**: `--lambda_val`, `--reward_type`, `--episodes`
-- **PowerShell 일괄 실행 스크립트**:
-  ```powershell
-  foreach ($l in @(0.5, 1.0, 1.5)) {
-      foreach ($r in @("standard", "cliff")) {
-          python visualize_mdp_results.py --lambda_val $l --reward_type $r --episodes 100000
-      }
-  }
-  ```
-  *(각 디렉토리에 `mdp_training_curves.png`, `mdp_performance_bars.png`, `mdp_heatmap_*.png` 플롯이 생성됩니다.)*
+#### [Step 4] 웹 대시보드 시각화용 데이터 취합 및 JSON 포맷 내보내기
+학습된 모든 시나리오 결과를 모아서 웹 가시화용 리소스 파일로 추출합니다.
+```bash
+python visualization/export_policy_data.py --episodes=100000
+```
+*(결과 파일: `visualization/policy_data.js` 및 `results/policy_data.js`)*
 
----
+#### [Step 5] 큐 대기열 변동 및 대기(Pending) 통계 시뮬레이션 GIF 렌더링
+보류 횟수를 실시간 표시하는 큐 동작 애니메이션을 인코딩합니다.
+```bash
+python generate_queue_gif.py --episodes=100000
+```
+*(결과 파일: `results/queue_simulation_L*.gif`)*
 
-### [Step 4] 웹 대시보드 시각화용 데이터 파일 내보내기
-학습된 모든 정책 테이블을 취합하여 HTML 브라우저 비주얼라이저가 로드하는 단일 데이터 셋(`policy_data.js`)으로 압축 추출합니다.
+#### [Step 6] 3대 정책 분산 비교 애니메이션 GIF 렌더링
+에너지 소모 및 지연 시간을 조율하는 행동 매핑 비교 애니메이션을 구동합니다.
+```bash
+python generate_policy_comparison_gif.py --episodes=100000
+```
+*(결과 파일: `results/policy_comparison_L*.gif`)*
 
-- **실행 스크립트**: `visualization/export_policy_data.py`
-- **주요 인수**: `--episodes`
-- **명령어**:
-  ```powershell
-  python visualization/export_policy_data.py --episodes 100000
-  ```
-  *(추출 결과물은 `visualization/policy_data.js` 및 `results/policy_data.js` 경로에 저장되어 [policy_visualizer.html](file:///C:/Users/sbeen/OneDrive/Desktop/RL_project%20-%20%EB%B3%B5%EC%82%AC%EB%B3%B8/visualization/policy_visualizer.html) 구동 시 자동 로드됩니다.)*
-
----
-
-### [Step 5] 고속 큐 시뮬레이션 애니메이션 (GIF) 생성
-Cliff 정책과 QoS-Aware Standard 정책의 큐 대기열 변동을 나란히 시뮬레이션하고 누적 대기 상태를 추적하는 고속 애니메이션을 생성합니다.
-
-- **실행 스크립트**: `generate_queue_gif.py`
-- **주요 인수**: `--episodes`
-- **명령어**:
-  ```powershell
-  python generate_queue_gif.py --episodes 100000
-  ```
-  *(결과물인 `queue_simulation_L*.gif`는 `results/` 및 `visualization/` 폴더에 복사됩니다.)*
-
----
-
-### [Step 6] 3대 정책 side-by-side 비교 애니메이션 (GIF) 생성
-DP Optimal vs Expected SARSA vs Q-Learning 세 가지 정책이 동일 환경 노이즈 하에서 큐 크기를 분산 제어하는 다이내믹한 비교 애니메이션을 생성합니다.
-
-- **실행 스크립트**: `generate_policy_comparison_gif.py`
-- **주요 인수**: `--episodes`
-- **명령어**:
-  ```powershell
-  python generate_policy_comparison_gif.py --episodes 100000
-  ```
-  *(결과물인 `policy_comparison_L*.gif`는 각 결과 폴더 및 아티팩트 디렉토리에 복사됩니다.)*
-
----
-
-### [Step 7] 통합 최종 결과 요약 테이블 생성
-최종 학습이 완비된 모든 메트릭 테이블을 터미널 상에 마크다운 포맷의 표로 종합 취합하여 출력합니다.
-
-- **실행 스크립트**: `aggregate_all_comparisons.py`
-- **주요 인수**: `--episodes`
-- **명령어**:
-  ```powershell
-  python aggregate_all_comparisons.py --episodes 100000
-  ```
+#### [Step 7] 종합 성적 결과 집계 테이블 요약 화면 출력
+모든 실험 메트릭들을 요약 정리하여 가독성 있는 마크다운 보고형식으로 표시합니다.
+```bash
+python aggregate_all_comparisons.py --episodes=100000
+```
+*(결과 파일: 터미널 stdout에 종합 테이블 표가 출력됨)*
