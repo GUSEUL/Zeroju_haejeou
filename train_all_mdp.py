@@ -113,20 +113,31 @@ def train_sarsa(env, episodes=5000, gamma=0.95, output_dir="."):
 def evaluate(env, pol, is_q=False, gamma=0.95):
     np.random.seed(42)
     random.seed(42)
-    rr, dd, ee = [], [], []
+    rr, dd_total, dd_intentional, dd_forced, ee = [], [], [], [], []
     for _ in range(500):
-        s, _ = env.reset(); er, ed, ee_episode = 0, 0, 0
+        s, _ = env.reset(); er, ee_episode = 0, 0
+        ed_total, ed_intentional, ed_forced = 0, 0, 0
         t = 0
         while True:
             a = np.argmax(pol[env.get_state_index(s)]) if is_q else pol[env.get_state_index(s)]
             s, r, term, trunc, info = env.step(a)
             er += (gamma ** t) * r
             ee_episode += info.get("energy", 0)
-            ed += info.get("pending_count", info.get("dropped_count", 1 if info.get("is_pending", info.get("is_dropped", False)) else 0))
+            
+            tot_pend = info.get("pending_count", info.get("dropped_count", 1 if info.get("is_pending", info.get("is_dropped", False)) else 0))
+            intent_pend = 1 if a == 3 else 0
+            forced_pend = tot_pend - intent_pend
+            if forced_pend < 0:
+                forced_pend = 0
+                
+            ed_total += tot_pend
+            ed_intentional += intent_pend
+            ed_forced += forced_pend
+            
             t += 1
             if term or trunc: break
-        rr.append(er); dd.append(ed); ee.append(ee_episode)
-    return np.mean(rr), np.mean(dd), np.mean(ee)
+        rr.append(er); dd_total.append(ed_total); dd_intentional.append(ed_intentional); dd_forced.append(ed_forced); ee.append(ee_episode)
+    return np.mean(rr), np.mean(dd_total), np.mean(dd_intentional), np.mean(dd_forced), np.mean(ee)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -151,18 +162,18 @@ if __name__ == "__main__":
         with open(model_path, "rb") as f: P, R = pickle.load(f)
         for n, f in [("Policy Iteration", policy_iteration), ("Value Iteration", value_iteration)]:
             pol, _, t = f(P, R)
-            r, d, e = evaluate(env, pol)
-            results.append({"agent": n, "reward": r, "pending": d, "energy": e, "time": t})
+            r, d, d_i, d_f, e = evaluate(env, pol)
+            results.append({"agent": n, "reward": r, "pending": d, "intentional_pending": d_i, "forced_pending": d_f, "energy": e, "time": t})
             
     for n, f in [("SARSA", train_sarsa), ("Q-Learning", train_q_learning)]:
         q, logs, t = f(env, episodes=args.episodes, output_dir=res_dir)
         if len(logs) > 0:
             pd.DataFrame(logs).to_csv(os.path.join(res_dir, f"{n.lower()}_log.csv"), index=False)
-        r, d, e = evaluate(env, q, is_q=True)
-        results.append({"agent": n, "reward": r, "pending": d, "energy": e, "time": t})
+        r, d, d_i, d_f, e = evaluate(env, q, is_q=True)
+        results.append({"agent": n, "reward": r, "pending": d, "intentional_pending": d_i, "forced_pending": d_f, "energy": e, "time": t})
         
-    r, d, e = evaluate(env, np.random.randint(0, 4, size=env.n_states))
-    results.append({"agent": "Random", "reward": r, "pending": d, "energy": e, "time": 0})
+    r, d, d_i, d_f, e = evaluate(env, np.random.randint(0, 4, size=env.n_states))
+    results.append({"agent": "Random", "reward": r, "pending": d, "intentional_pending": d_i, "forced_pending": d_f, "energy": e, "time": 0})
     
     final_res_path = os.path.join(res_dir, "mdp_final_results.csv")
     pd.DataFrame(results).to_csv(final_res_path, index=False)
