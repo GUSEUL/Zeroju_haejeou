@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # 기본값 설정
-LAMBDAS=(0.5 1.5 3.5)
-EPISODES=5000
-REWARD_TYPES=("standard" "sparse" "cliff")
+LAMBDAS=(0.5 1.0 1.5)
+EPISODES=100000
+REWARD_TYPES=("standard" "cliff")
 
 # Python 명령어 확인
 PYTHON_CMD="python"
@@ -50,8 +50,25 @@ for LAMBDA in "${LAMBDAS[@]}"; do
     done
 done
 
+# Step 4: 웹 대시보드 시각화용 데이터 파일 내보내기
+echo ""
+echo "[Step 4] Exporting Policy Data..."
+$PYTHON_CMD visualization/export_policy_data.py --episodes=$EPISODES
+
+# Step 5: 고속 큐 시뮬레이션 애니메이션 (GIF) 생성
+echo "[Step 5] Generating Queue Simulation GIFs..."
+$PYTHON_CMD generate_queue_gif.py --episodes=$EPISODES
+
+# Step 6: 3대 정책 side-by-side 비교 애니메이션 (GIF) 생성
+echo "[Step 6] Generating Policy Comparison GIFs..."
+$PYTHON_CMD generate_policy_comparison_gif.py --episodes=$EPISODES
+
+# Step 7: 통합 최종 결과 요약 테이블 생성
+echo "[Step 7] Aggregating All Results..."
+$PYTHON_CMD aggregate_all_comparisons.py --episodes=$EPISODES
+
 echo ""
 echo "=========================================================="
-echo " 모든 시나리오(람다 및 리워드 타입)에 대한 실험이 완료되었습니다."
+echo " 모든 시나리오 및 후속 시뮬레이션 시각화가 완료되었습니다."
 echo " 결과 폴더(results/)를 확인해주세요."
 echo "=========================================================="
