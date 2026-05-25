@@ -114,26 +114,26 @@
 | **$\lambda = 0.5$** | Standard | Policy Iteration | -12.11 | 0.00 | 459.48 |
 | | | Value Iteration | -12.11 | 0.00 | 459.49 |
 | | | Expected SARSA | -13.27 | 0.00 | 451.74 |
-| | | Q-Learning | -12.30 | 0.00 | 458.01 |
+| | | Q-Learning | **-12.30** | 0.00 | 458.01 |
 | | Cliff | Policy Iteration | -12.41 | 0.00 | 459.85 |
 | | | Value Iteration | -12.41 | 0.00 | 459.89 |
 | | | Expected SARSA | -20.74 | 0.00 | 443.36 |
-| | | Q-Learning | -13.08 | 0.00 | 457.51 |
+| | | Q-Learning | **-13.08** | 0.00 | 457.51 |
 | **$\lambda = 1.0$** | Standard | Policy Iteration | -19.77 | 6.02 | 451.74 |
 | | | Value Iteration | -19.77 | 6.02 | 451.74 |
 | | | Expected SARSA | -24.49 | 7.42 | 444.96 |
-| | | Q-Learning | -23.60 | 7.14 | 446.35 |
+| | | Q-Learning | **-23.60** | 7.14 | 446.35 |
 | | Cliff | Policy Iteration | -16.92 | 6.00 | 450.82 |
 | | | Value Iteration | -16.92 | 6.00 | 450.84 |
-| | | Expected SARSA | -20.69 | 14.49 | 444.15 |
+| | | Expected SARSA | **-20.69** | 14.49 | 444.15 |
 | | | Q-Learning | -31.09 | 18.47 | 439.35 |
 | **$\lambda = 1.5$** | Standard | Policy Iteration | -99.24 | 819.13 | 151.21 |
 | | | Value Iteration | -99.15 | 819.04 | 151.25 |
-| | | Expected SARSA | -131.86 | 836.05 | 278.84 |
+| | | Expected SARSA | **-131.86** | 836.05 | 278.84 |
 | | | Q-Learning | -147.32 | 840.41 | 289.85 |
 | | Cliff | Policy Iteration | -54.95 | 761.35 | 177.14 |
 | | | Value Iteration | -54.97 | 761.31 | 177.16 |
-| | | Expected SARSA | -150.97 | 762.69 | 266.07 |
+| | | Expected SARSA | **-150.97** | 762.69 | 266.07 |
 | | | Q-Learning | -298.35 | 764.95 | 314.89 |
 
 ### B. 결과 심층 분석 및 알고리즘별 특징
